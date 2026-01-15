@@ -18,6 +18,16 @@ Official tools like **STM32CubeProgrammer** support UART bootloader programming 
 - Simple command-line interface for scripting and automation.
 - Written in Python for cross-platform use (Linux, Windows, macOS).
 
+## STM32CubeProgrammer data flow
+Data verified after all occupied sectors erased and written with firmware data
+![STM32CubeProgrammer prog dia](doc/logic/STM32CubeProgrammer.png)
+![STM32CubeProgrammer write dia](doc/logic/WriteMem_ReadMem.png)
+
+## stm32-uart-prog data flow
+Data verified after every page/chunk write, if verify fails - erase sector again and try another attempt
+![stm32-uart-prog prog dia](doc/logic/stm32-uart-prog.png)
+![stm32-uart-prog write/read dia](doc/logic/WriteChunk_ReadChunk.png)
+
 
 ## Application-Specific Control Logic (`context.py`)
 This project intentionally separates generic STM32 UART programming logic from application/system-specific control logic. The latter is implemented in `context.py` and **must be modified by the user** to match their hardware topology and firmware behavior.
