@@ -1,0 +1,6 @@
+dist
+logs
+*.lock
+*.pyc
+*.hex
+stm32_cli.py

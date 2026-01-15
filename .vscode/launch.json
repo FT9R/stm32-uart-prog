@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Workspace",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "stm32_uart_prog.main",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "delete-logs",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "args": [
+                "--hexfile",
+                "firmware.hex",
+                "--targets",
+                "1-3"
+            ]
+        }
+    ]
+}
