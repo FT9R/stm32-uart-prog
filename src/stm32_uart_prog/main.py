@@ -148,8 +148,19 @@ def main():
     hexfile = os.path.abspath(args.hexfile)
     targets = tuple(args.targets)
     prog_status = {id: "Undefined" for id in targets}
+    STM32BL.retries = args.retries
 
     try:
+        # Baudrate check
+        if args.baudrate not in STM32BL.BAUDRATES:
+            if not proposal_to_continue(
+                f"{YELLOW}Baudrate {args.baudrate} does not fit into {STM32BL.BAUDRATES}.\nContinue? (yes/no){RESET}",
+                "Provide proper baudrate",
+            ):
+                raise InterruptedError
+            f"baudrate {args.baudrate} is not supported, try one of these {STM32BL.BAUDRATES}"
+        STM32BL.baudrate = args.baudrate
+
         # Basic hexfile check
         if not hexfile.endswith(".hex"):
             raise RuntimeError(f"only .hex files are supported")
@@ -177,7 +188,7 @@ def main():
             port, desc = ports[index]
             print(f"Using port: {port} ({desc})")
             break
-        sp = SerialPort(port, 57600, timeout=0.2)  # Open serial port
+        sp = SerialPort(port, STM32BL.baudrate, timeout=0.2)  # Open serial port
 
         bl = STM32BL(
             sp,
@@ -190,7 +201,6 @@ def main():
             ):
                 raise InterruptedError
         bl.start_address = args.address
-        bl.retries = args.retries
         chunks_per_target = sum(bl.FLASH_SECTORS[s][1] // bl.CHUNK for s in bl.used_sectors)
         total_chunks = chunks_per_target * len(targets)
         start_time = time.time()
@@ -210,7 +220,7 @@ def main():
                             f"\n{YELLOW}At least one target programming failed.\nContinue programming target ID {target_id}? (yes/no){RESET}",
                             f"{RED}Programming aborted by user{RESET}",
                         ):
-                            break
+                            raise InterruptedError
                     total_bar.write(f"\nProgramming target ID {BLUE}{target_id}{RESET}")
                     # Send activate bootloader command first, even if not in bootloader mode
                     # This helps to ensure that target will calculate proper baudrate/parity later
@@ -221,11 +231,11 @@ def main():
                     bl.ser.reset_input()
 
                     # Mute all devices before starting, so they won't interfere with each other
-                    retry(lambda: be_quiet(sp))
+                    retry(lambda: be_quiet(sp, bl.baudrate))
                     total_bar.refresh()
 
                     # Put target into bootloader mode
-                    retry(lambda: enter_bootloader(sp, target_id))
+                    retry(lambda: enter_bootloader(sp, target_id, bl.baudrate))
                     total_bar.refresh()
                     bl.init(target_id, total_bar)
                     pid = bl.get_pid()

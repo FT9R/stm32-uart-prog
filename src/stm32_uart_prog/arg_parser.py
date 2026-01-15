@@ -29,6 +29,12 @@ def args_get() -> argparse.Namespace:
             default=0x08000000,
         )
         parser.add_argument(
+            "--baudrate",
+            type=int,
+            help="UART baudrate",
+            default=57600,
+        )
+        parser.add_argument(
             "--loglvl",
             type=str,
             choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],

@@ -20,15 +20,16 @@ def getCrc8(buffer):
     return crc
 
 
-def be_quiet(sp: SerialPort):
+def be_quiet(sp: SerialPort, bl_baudrate: int):
     """Send mute command to all devices
 
     Args:
         sp (SerialPort): The serial port to use
+        bl_baudrate (int): Original bootloader baudrate
     """
 
     dev_id = 0xFFFF  # Broadcast ID
-    orig_baudrate = 57600
+    orig_baudrate = bl_baudrate
     orig_parity = serial.PARITY_EVEN
 
     try:
@@ -71,15 +72,17 @@ def be_quiet(sp: SerialPort):
         time.sleep(0.5)
 
 
-def enter_bootloader(sp: SerialPort, dev_id: int):
+def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
     """Send enter bootloader command to a specific device
 
     Args:
         sp (SerialPort): The serial port to use
         dev_id (int): The device ID to send the command to
+        bl_baudrate (int): Original bootloader baudrate
+
     """
 
-    orig_baudrate = 57600
+    orig_baudrate = bl_baudrate
     orig_parity = serial.PARITY_EVEN
 
     try:

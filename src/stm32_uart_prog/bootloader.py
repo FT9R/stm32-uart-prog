@@ -14,6 +14,7 @@ class STM32BL:
     CHUNK = 256
     retries = 1
     start_address = 0
+    baudrate = 57600
 
     SUPPORTED_DEVICE_ID = [0x0413]
 
@@ -50,6 +51,8 @@ class STM32BL:
         # "readout_unprotect": 0x92,
         # "get_checksum": 0xA1,
     }
+
+    BAUDRATES = [1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200]
 
     ACK = 0x79
     NACK = 0x1F
