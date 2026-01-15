@@ -1,5 +1,8 @@
 # stm32-uart-prog
+
 A mass-programming utility for STM32 MCU's over UART designed to be reliable and noise-resistant when used on RS-485 physical layer. It targets workflows where many identical STM32 devices need to be programmed in sequence over one shared bus.
+
+![stm32-uart-prog CLI showcase](doc/showcase.png)
 
 ## Why this tool exists
 Official tools like **STM32CubeProgrammer** support UART bootloader programming but are often brittle on noisy lines, needs additional CLI scripting in automated setups (especially RS-485 with DE/RE toggle), frequently encounter disconnects, failures to detect the bootloader, and general instability when programming many devices.  
