@@ -2,7 +2,7 @@ import os
 import struct
 import time
 
-from intelhex import IntelHex
+from intelhex import IntelHex, IntelHexError
 from tqdm import tqdm
 
 from stm32_uart_prog.colors import *

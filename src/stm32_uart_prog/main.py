@@ -12,10 +12,8 @@ def proposal_to_continue(proposal: str, interrupted: str, continued: str = " "):
     try:
         while True:
             response = input(f"\n{proposal}\n").lower()
-
             if response in ("yes", "no"):
                 break
-
         if response != "yes":
             print(f"{interrupted}")
             return 0
@@ -23,7 +21,6 @@ def proposal_to_continue(proposal: str, interrupted: str, continued: str = " "):
             if continued:
                 print(continued)
             return 1
-
     except KeyboardInterrupt:
         print(f"{RED}KeyboardInterrupt detected{RESET}")
         print(interrupted)
@@ -264,14 +261,20 @@ def main():
                     total_bar.write(f"{RED}Programming failed{RESET}")
                     prog_status[target_id] = "Fail"
                     logger.exception(f"target ID{target_id}: error during programming - {e}")
-
-    except KeyboardInterrupt as e:
+    except (KeyboardInterrupt, InterruptedError):
         print(f"\n{YELLOW}Operation cancelled by user{RESET}")
+    except serial.SerialException as se:
+        print(f"{RED}Could not open serial port: {se}{RESET}")
+        logger.exception(f"{se}")
+    except IntelHexError as ihe:
+        print(f"{RED}Error while parsing hexfile: {ihe}{RESET}")
+        logger.exception(f"{ihe}")
     except RuntimeError as re:
         print(f"{RED}Runtime error: {re}{RESET}")
         logger.exception(f"{re}")
-    except InterruptedError:
-        print(f"{RED}Programming interrupted{RESET}")
+    except Exception as e:
+        print(f"{RED}An unhandled exception has occurred: {e}{RESET}")
+        logger.exception(f"{e}")
     finally:
         if start_time:
             print("\nProgramming summary:")
