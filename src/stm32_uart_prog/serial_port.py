@@ -1,7 +1,6 @@
 import sys
 import time
 
-import serial
 import serial.tools.list_ports
 
 from stm32_uart_prog.loggers import logger
@@ -92,7 +91,7 @@ class SerialPort(serial.Serial):
                             logger.error("bytes available in buffer but could not read any data")
                     elif time.perf_counter() - start_time > stall_timeout:
                         logger.warning(
-                            f"stall timeout after waiting for {size} bytes, got {len(data)} bytes {list(data)}"
+                            f"stall timeout after waiting for {size} bytes, got {len(data)} bytes {data.hex(sep=' ').upper()}"
                         )
                         return bytes(data)
                     else:
@@ -102,9 +101,9 @@ class SerialPort(serial.Serial):
 
             data_length = len(data)
             if data_length == size:
-                logger.debug(f"{data_length} bytes: {list(data)}")
+                logger.debug(f"{data_length} bytes: {data.hex(sep=' ').upper()}")
             elif data_length != 0:
-                logger.debug(f"length {data_length} does not match requested size {size}: {list(data)}")
+                logger.debug(f"length {data_length} does not match requested size {size}: {data.hex(sep=' ').upper()}")
             else:
                 logger.debug("no data received")
         except serial.SerialException as se:
@@ -122,7 +121,7 @@ class SerialPort(serial.Serial):
                 raise serial.SerialException("port is not open during recv_all")
             data = self.read_all()
             if data:
-                logger.debug(f"{len(data)} bytes: {list(data)}")
+                logger.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
             else:
                 logger.error("could not read data frame from buffer")
                 pass
