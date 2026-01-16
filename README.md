@@ -8,7 +8,7 @@ A mass-programming utility for STM32 MCU's over UART designed to be reliable and
 Official tools like **STM32CubeProgrammer** support UART bootloader programming but are often brittle on noisy lines, needs additional CLI scripting in automated setups (especially RS-485 with DE/RE toggle), frequently encounter disconnects, failures to detect the bootloader, and general instability when programming many devices.  
 `stm32-uart-prog` aims to address this by:
 
-- Erasing by sectors, writing/reading by pages (chunks) instead of erasing/writing/reading the whole memory occupied by further firmare. This helps to track any error earlier.
+- Erasing by sectors, writing/reading by pages (chunks) instead of erasing/writing/reading the whole memory occupied by further firmware. This helps to track any error earlier.
 - Improving UART reliability, including retry logic and timeouts tuned for real-world RS-485 environments.
 - Being more tolerant of bootloader activation timing glitches.
 - Focusing on mass programming of identical targets rather than one-off interactively driven flashing.
@@ -66,10 +66,13 @@ This can be done using either:
 The programmer does not assume *how* bootloader entry is achieved - only that `context.py` provides a reliable implementation.
 
 ## Installation
-- Adapt `context.py` to specific application.
-- Clone the repository and install dependencies:
+- Clone the repository:
 ```sh
 git clone https://github.com/FT9R/stm32-uart-prog.git
+```
+- Adapt `context.py` to specific application
+- Install with dependencies
+```sh
 cd stm32-uart-prog
 pip install -e .
 ```
