@@ -1,6 +1,6 @@
 [project]
 name = "stm32-uart-prog"
-version = "0.1.0"
+version = "0.1.1"
 description = "A tool to perform mass programming of STM32 microcontrollers via UART and RS485 interfaces using the factory bootloader protocol"
 authors = [
     {name = "FT9R",email = "ft9r@mail.ru"}

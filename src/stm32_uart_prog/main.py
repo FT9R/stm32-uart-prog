@@ -236,6 +236,8 @@ def main():
                     total_bar.refresh()
                     bl.init(target_id, total_bar)
                     pid = bl.get_pid()
+                    if not pid:
+                        raise RuntimeError("could not get product id")
                     if int(pid, base=16) not in bl.SUPPORTED_DEVICE_ID:
                         raise NotImplementedError(f"no such device support with PID {pid}")
                     total_bar.refresh()
