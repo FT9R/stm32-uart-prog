@@ -153,7 +153,7 @@ class SerialPort(serial.Serial):
 
     @classmethod
     def get_ports(cls):
-        dev_name = "COM" if sys.platform.startswith("win") else "/dev/ttyUSB"
+        dev_name = "COM" if sys.platform.startswith("win") else "/dev/tty"
         ports_valid: list[tuple[str, str]] = []
 
         try:
