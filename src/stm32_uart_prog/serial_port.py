@@ -44,8 +44,12 @@ class SerialPort(serial.Serial):
     def send_data(self, data: bytes):
         try:
             if getattr(self, "is_open", False):
-                self.write(data)
-                logger.debug(f"{len(data)} bytes: {list(data)}")
+                written = self.write(data)
+                if written != len(data):
+                    raise serial.SerialException(f"incomplete write: {written}/{len(data)}")
+                self.flush()
+                time.sleep(0)
+                logger.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
             else:
                 raise serial.SerialException("port is not open during send_data")
         except serial.SerialException as se:
