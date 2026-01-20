@@ -18,6 +18,7 @@ Official tools like **STM32CubeProgrammer** support UART bootloader programming 
 - Designed for use with RS-485 line drivers and shared serial buses.
 - Retries and timeouts optimized for noisy and electrically challenging environments.
 - Auto recovery after detecting errors, such as line noise or usb-rs485 converter reconnect. 
+- Auto baudrate tune in such cases, when target baudrate calculation is incorrect 
 - Simple command-line interface for scripting and automation.
 - Written in Python for cross-platform use (Linux, Windows, macOS).
 

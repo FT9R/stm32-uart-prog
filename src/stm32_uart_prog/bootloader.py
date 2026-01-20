@@ -1,3 +1,4 @@
+import math
 import os
 import struct
 import time
@@ -12,16 +13,18 @@ from stm32_uart_prog.serial_port import SerialPort, serial
 
 class STM32BL:
     retries = 1
+    cmd_attempts = 5
     start_address = 0
-    baudrate = 57600
+    initial_baudrate = 57600
     failed_once = False
     __target_id = 0
 
+    ACTIVATE = 0x7F
     ACK = 0x79
     NACK = 0x1F
     CHUNK = 256
     SUPPORTED_DEVICE_ID = [0x0413]
-    BAUDRATES = [1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200]
+    BAUDRATES = [19200, 38400, 56000, 57600, 74880, 76800, 115200, 230400]
 
     FLASH_SECTORS = [
         (0x08000000, 16 * 1024),
@@ -39,7 +42,6 @@ class STM32BL:
     ]
 
     COMMAND_SET = {
-        "activate": 0x7F,
         "get": 0x00,
         # "get_version": 0x01,
         "get_id": 0x02,
@@ -66,6 +68,7 @@ class STM32BL:
             raise FileNotFoundError(f"hexfile not found: {hexfile}")
 
         self.ser = sp
+        self.baudrate = self.initial_baudrate = sp.baudrate
         self.ih = IntelHex(hexfile)
         if not self.ih:
             raise AttributeError("could not parse hexfile")
@@ -106,25 +109,168 @@ class STM32BL:
             return False
         return True
 
-    def init(self, dev_id: int, total_bar: tqdm):
+    def sync(
+        self,
+        dev_id: int,
+        total_bar: tqdm,
+        tune_requests: int = 1000,
+        success_threshold: float = 0.7,
+    ):
         self.__target_id = dev_id
-        for attempt in range(3):
-            # Target assumed not in bootloader mode, try to enter it
-            total_bar.refresh()
-            time.sleep(0.1)
-            self.ser.send_data(self.COMMAND_SET["activate"].to_bytes())
-            if self._read_ack():
-                break
-        else:
-            # Target assumed to be in bootloader mode already
-            time.sleep(0.5)
-            for attempt in range(3):
-                total_bar.refresh()
-                time.sleep(0.1)
-                if self.get_commands():
+        span, step = 0.2, 0.005
+        steps = int(span / step)
+
+        def sync_rate(baud: int, bar: tqdm) -> float:
+            try:
+                self.ser.baudrate = baud
+            except Exception:
+                return 0.0
+
+            byte_time = 11 / baud
+            response_count = 0
+            for _ in range(tune_requests):
+                bar.update(1)
+                self.ser.send_data(b"\x7f")
+                time.sleep(max(byte_time * 2, 0.001))
+                self.ser.send_data(b"\x7f")
+                time.sleep(max(byte_time * 4, 0.001))
+                r = self.ser.recv_all()
+                if not r or r[0] not in (self.ACK, self.NACK):
                     break
+                response_count += 1
+            return response_count / tune_requests
+
+        # Build baud list
+        bauds = [self.initial_baudrate] * 50  # Try initial baud more times
+        bauds += sorted(
+            {
+                int(self.initial_baudrate * (1 + i * step))
+                for i in range(-steps, steps + 1)
+                if int(self.initial_baudrate * (1 + i * step)) > 0
+                and int(self.initial_baudrate * (1 + i * step)) != self.initial_baudrate
+            }
+        )
+        other_bases = [b for b in self.BAUDRATES if b > 0 and b != self.initial_baudrate]
+        bauds += [
+            b
+            for b in sorted(
+                {
+                    int(base * (1 + i * step))
+                    for base in other_bases
+                    for i in range(-steps, steps + 1)
+                    if int(base * (1 + i * step)) > 0
+                }
+            )
+            if b not in bauds
+        ]
+
+        best_baud = None
+        best_rate = 0.0
+        for baud in bauds:
+            with tqdm(total=tune_requests, desc=f"Sync baud {baud}", leave=False) as bar:
+                rate = sync_rate(baud, bar)
+
+            logger.debug(f"target ID{self.__target_id}: baud={baud}, success_rate={rate:.2f}")
+            if rate > best_rate:
+                best_rate = rate
+                best_baud = baud
+
+            # Perfect match: stop scanning
+            if rate == 1.0:
+                best_baud = baud
+                best_rate = rate
+                break
+            total_bar.update(0)
+
+        # Decide result
+        if best_baud is None or best_rate < success_threshold:
+            raise RuntimeError(f"target ID{self.__target_id} - could not sync baudrate")
+
+        # Apply selected baud and finalize
+        self.baudrate = self.ser.baudrate = best_baud
+        total_bar.write(f"Sync at baudrate {best_baud} ({best_rate:.1%})")
+        if not math.isclose(best_baud, self.initial_baudrate, rel_tol=0.01):
+            total_bar.write(
+                f"{YELLOW}Baudrate after sync differs from initial: {best_baud}/{self.initial_baudrate}{RESET}"
+            )
+        self.ser.reset_input()
+        return
+
+    def baud_tune(self, total_bar: tqdm, tune_requests=500, success_threshold=0.7):
+        """
+        Autodetect target baudrate using STM32 GET command.
+
+        Accepts baud if:
+        - 100% GET success -> immediate lock
+        - otherwise picks best baud >= `success_threshold`
+        """
+
+        required_cmds = set(self.COMMAND_SET.values())
+
+        orig_cmd_attempts = self.cmd_attempts
+        orig_baud = self.ser.baudrate
+
+        self.cmd_attempts = 1
+        self.ser.timeout = (11 * 30 / orig_baud) * 1.3
+
+        span, step = 0.1, 0.002
+
+        steps = int(span / step)
+        baud_candidates = sorted(
+            {int(orig_baud * (1 + i * step)) for i in range(-steps, steps + 1) if orig_baud * (1 + i * step) > 0}
+        )
+
+        best_baud = None
+        best_rate = 0.0
+
+        try:
+            for baud in baud_candidates:
+                try:
+                    self.baudrate = self.ser.baudrate = baud
+                except Exception as e:
+                    logger.warning(f"failed to set baudrate {baud}: {e}")
+                    continue
+
+                response_count = 0
+                with tqdm(
+                    total=tune_requests,
+                    desc=f"Tune baud {baud}",
+                    leave=False,
+                    unit="pass",
+                    dynamic_ncols=True,
+                    position=0,
+                ) as bar:
+                    for _ in range(tune_requests):
+                        bar.update(1)
+                        cmds = self.get_commands()
+                        if not cmds or not required_cmds.issubset(cmds):
+                            break
+                        response_count += 1
+
+                rate = response_count / tune_requests
+
+                if rate == 1.0:
+                    best_baud, best_rate = baud, rate
+                    return baud
+
+                if rate >= success_threshold and rate > best_rate:
+                    best_baud, best_rate = baud, rate
+
+            if best_baud:
+                self.baudrate = self.ser.baudrate = best_baud
+                logger.warning(f"no 100% baud found, using {best_baud} ({best_rate:.1%} success)")
+                return best_baud
+
+            raise RuntimeError("baudrate autodetection failed")
+        finally:
+            self.cmd_attempts = orig_cmd_attempts
+            self.ser.timeout = (11 * 256 / self.baudrate) * 1.3  # Timeout to read one mem page based on new baudrate
+
+            if best_rate:
+                if self.baudrate != orig_baud:
+                    total_bar.write(f"Baudrate tuned to {self.baudrate} ({best_rate:.1%})")
             else:
-                raise RuntimeError(f"bootloader sync failed")
+                total_bar.write(f"{RED}No baudrate candidate found{RESET}")
 
     def get_commands(self):
         cmds = bytes()
@@ -158,7 +304,7 @@ class STM32BL:
             return str()
 
         self._read_ack()
-        return hex(int.from_bytes(pid, signed=True))
+        return hex(int.from_bytes(pid))
 
     def read_mem(self, addr, size):
         if not self.cmd(self.COMMAND_SET["read_memory"]):
@@ -201,7 +347,7 @@ class STM32BL:
         chk = self._checksum(payload)
         self.ser.send_data(payload + bytes([chk]))
 
-        time.sleep(0.5)  # Erase can take time
+        time.sleep(1)  # Erase can take time
         return self._read_ack()
 
     def start_application(self, addr: int):
@@ -213,7 +359,7 @@ class STM32BL:
         return self._read_ack()
 
     def cmd(self, cmd: int):
-        for attempt in range(5):
+        for attempt in range(self.cmd_attempts):
             self.ser.send_data(bytes([cmd, cmd ^ 0xFF]))
             if self._read_ack():
                 return True
@@ -249,7 +395,6 @@ class STM32BL:
                 resp = self.ser.recv_data(1)
                 if resp:
                     return True
-                time.sleep(interval)
             return False
         except serial.SerialException as se:
             logger.exception(se)
@@ -258,6 +403,7 @@ class STM32BL:
         finally:
             if timeout_orig is not None:
                 try:
+                    time.sleep(0.1)
                     self.ser.timeout = timeout_orig
                 except Exception:
                     pass

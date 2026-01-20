@@ -61,7 +61,6 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
         for _ in range(5):
             sp.send_data(frame)
             time.sleep(0.5)
-        sp.reset_input()
     except Exception as e:
         logger.exception(f"error sending mute command: {e}")
         raise
@@ -69,6 +68,7 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
         # Restore original settings
         sp.baudrate = orig_baudrate
         sp.parity = orig_parity
+        sp.reset_input()
         time.sleep(0.5)
 
 
@@ -117,7 +117,6 @@ def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
         for _ in range(5):
             sp.send_data(frame)
             time.sleep(0.2)
-        sp.reset_input()
     except serial.SerialException as se:
         logger.exception(f"serial error sending enter bootloader command: {se}")
         sp.reconnect(se)
@@ -129,4 +128,5 @@ def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
         # Restore original settings
         sp.baudrate = orig_baudrate
         sp.parity = orig_parity
+        sp.reset_input()
         time.sleep(5)  # Wait for device to enter bootloader

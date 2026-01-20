@@ -89,7 +89,7 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                     logger.warning(f"sector {sector}: write failed at 0x{chunk_start:08X}")
                     if not bl.probe_bootloader():
                         logger.warning("hard resync")
-                        bl.ser.send_data(bl.COMMAND_SET["activate"].to_bytes())
+                        bl.ser.send_data(bl.ACTIVATE.to_bytes())
                         bl._read_ack()
                     break
 
@@ -156,7 +156,7 @@ def main():
             ):
                 raise InterruptedError
             f"baudrate {args.baudrate} is not supported, try one of these {STM32BL.BAUDRATES}"
-        STM32BL.baudrate = args.baudrate
+        STM32BL.initial_baudrate = args.baudrate
 
         # Basic hexfile check
         if not hexfile.endswith(".hex"):
@@ -183,9 +183,8 @@ def main():
                 print(f"Invalid selection: enter a number between 0 and {len(ports) - 1}")
                 continue
             port, desc = ports[index]
-            print(f"Using port: {port} ({desc})")
             break
-        sp = SerialPort(port, STM32BL.baudrate, timeout=0.2)  # Open serial port
+        sp = SerialPort(port, STM32BL.initial_baudrate, timeout=3)  # Open serial port
 
         bl = STM32BL(
             sp,
@@ -203,14 +202,10 @@ def main():
         start_time = time.time()
 
         with tqdm(
-            desc="Tot",
-            total=total_chunks,
-            leave=False,
-            unit="chunk",
-            dynamic_ncols=True,
-            smoothing=0.8,
+            desc="Tot", total=total_chunks, leave=False, unit="chunk", dynamic_ncols=True, smoothing=0.8, position=1
         ) as total_bar:
             for target_id in targets:
+                time.sleep(0.5)
                 try:
                     if bl.failed_once:
                         if not proposal_to_continue(
@@ -222,8 +217,8 @@ def main():
                     # Send activate bootloader command first, even if not in bootloader mode
                     # This helps to ensure that target will calculate proper baudrate/parity later
                     # If not in bootloader mode, target wont respond
-                    for _ in range(3):
-                        bl.ser.send_data(bl.COMMAND_SET["activate"].to_bytes())
+                    for _ in range(5):
+                        bl.ser.send_data(bl.ACTIVATE.to_bytes())
                         time.sleep(0.1)
                     bl.ser.reset_input()
 
@@ -234,7 +229,8 @@ def main():
                     # Put target into bootloader mode
                     retry(lambda: enter_bootloader(sp, target_id, bl.baudrate))
                     total_bar.refresh()
-                    bl.init(target_id, total_bar)
+                    bl.sync(target_id, total_bar, 2000)
+                    bl.baud_tune(total_bar, 2000, args.tune_threshold)
                     pid = bl.get_pid()
                     if not pid:
                         raise RuntimeError("could not get product id")
@@ -243,11 +239,11 @@ def main():
                     total_bar.refresh()
 
                     # Check supported commands
-                    commands = bl.get_commands()
+                    sup_commands = bl.get_commands()
                     for cmd_name, cmd in bl.COMMAND_SET.items():
-                        if cmd not in commands and cmd_name not in ("activate",):
+                        if cmd not in sup_commands:
                             raise RuntimeError(f"required bootloader command not supported: {cmd_name} ({hex(cmd)})")
-                    logger.info(f"target {target_id}, supported commands: {commands.hex(sep=' ')}")
+                    logger.info(f"target {target_id}, supported commands: {sup_commands.hex(sep=' ')}")
 
                     # Program the target
                     prog_status[target_id] = program_hex(bl, target_id, total_bar)
@@ -260,7 +256,7 @@ def main():
                         total_bar.write(f"{RED}Programming failed{RESET}")
                 except Exception as e:
                     bl.failed_once = True
-                    total_bar.write(f"{RED}Programming failed{RESET}")
+                    total_bar.write(f"{RED}Programming failed ({e}){RESET}")
                     prog_status[target_id] = "Fail"
                     logger.exception(f"target ID{target_id}: error during programming - {e}")
     except (KeyboardInterrupt, InterruptedError):

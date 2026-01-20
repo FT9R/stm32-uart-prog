@@ -35,6 +35,12 @@ def args_get() -> argparse.Namespace:
             default=57600,
         )
         parser.add_argument(
+            "--tune-threshold",
+            type=float,
+            help="Baudrate autotune success threshold (0.0-1.0)",
+            default=0.8,
+        )
+        parser.add_argument(
             "--loglvl",
             type=str,
             choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],

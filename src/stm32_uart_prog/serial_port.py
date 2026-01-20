@@ -123,7 +123,7 @@ class SerialPort(serial.Serial):
             if data:
                 logger.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
             else:
-                logger.error("could not read data frame from buffer")
+                logger.debug("no data received")
                 pass
         except serial.SerialException as se:
             self.reconnect(se)
