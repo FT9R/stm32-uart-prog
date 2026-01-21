@@ -35,6 +35,11 @@ def args_get() -> argparse.Namespace:
             default=57600,
         )
         parser.add_argument(
+            "--no-tune",
+            action="store_true",
+            help="Disable baudrate autotune",
+        )
+        parser.add_argument(
             "--tune-threshold",
             type=float,
             help="Baudrate autotune success threshold (0.0-1.0)",

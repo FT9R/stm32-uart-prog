@@ -217,10 +217,8 @@ def main():
                     # Send activate bootloader command first, even if not in bootloader mode
                     # This helps to ensure that target will calculate proper baudrate/parity later
                     # If not in bootloader mode, target wont respond
-                    for _ in range(5):
-                        bl.ser.send_data(bl.ACTIVATE.to_bytes())
-                        time.sleep(0.1)
-                    bl.ser.reset_input()
+                    if bl.sync(total_bar, target_id, skip_tune=True):
+                        total_bar.write("Bootloader already activated")
 
                     # Mute all devices before starting, so they won't interfere with each other
                     retry(lambda: be_quiet(sp, bl.baudrate))
@@ -229,8 +227,15 @@ def main():
                     # Put target into bootloader mode
                     retry(lambda: enter_bootloader(sp, target_id, bl.baudrate))
                     total_bar.refresh()
-                    bl.sync(target_id, total_bar, 2000)
-                    bl.baud_tune(total_bar, 2000, args.tune_threshold)
+                    bl.sync(
+                        total_bar,
+                        target_id,
+                        skip_tune=args.no_tune,
+                        tune_requests=2000,
+                        success_threshold=args.tune_threshold,
+                    )
+                    if not args.no_tune:
+                        bl.baud_tune(total_bar, 2000, args.tune_threshold)
                     pid = bl.get_pid()
                     if not pid:
                         raise RuntimeError("could not get product id")

@@ -111,14 +111,27 @@ class STM32BL:
 
     def sync(
         self,
-        dev_id: int,
         total_bar: tqdm,
+        dev_id: int,
+        skip_tune: bool = False,
         tune_requests: int = 1000,
         success_threshold: float = 0.7,
     ):
         self.__target_id = dev_id
         span, step = 0.2, 0.005
         steps = int(span / step)
+
+        if skip_tune:
+            activated = False
+            for _ in range(5):
+                self.ser.send_data(self.ACTIVATE.to_bytes())
+                time.sleep(0.1)
+                r = self.ser.recv_all()
+                if r:
+                    activated = True
+                    break
+            self.ser.reset_input()
+            return activated
 
         def sync_rate(baud: int, bar: tqdm) -> float:
             try:
@@ -194,7 +207,7 @@ class STM32BL:
                 f"{YELLOW}Baudrate after sync differs from initial: {best_baud}/{self.initial_baudrate}{RESET}"
             )
         self.ser.reset_input()
-        return
+        return True
 
     def baud_tune(self, total_bar: tqdm, tune_requests=500, success_threshold=0.7):
         """
