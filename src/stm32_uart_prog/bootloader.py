@@ -141,8 +141,8 @@ class STM32BL:
             return response_count / tune_requests
 
         # Build baud list
-        bauds = [self.initial_baudrate] * 50  # Try initial baud more times
-        bauds += sorted(
+        baud_candidates = [self.initial_baudrate] * 50  # Try initial baud more times
+        baud_candidates += sorted(
             {
                 int(self.initial_baudrate * (1 + i * step))
                 for i in range(-steps, steps + 1)
@@ -151,7 +151,7 @@ class STM32BL:
             }
         )
         other_bases = [b for b in self.BAUDRATES if b > 0 and b != self.initial_baudrate]
-        bauds += [
+        baud_candidates += [
             b
             for b in sorted(
                 {
@@ -161,12 +161,12 @@ class STM32BL:
                     if int(base * (1 + i * step)) > 0
                 }
             )
-            if b not in bauds
+            if b not in baud_candidates
         ]
 
         best_baud = None
         best_rate = 0.0
-        for baud in bauds:
+        for baud in baud_candidates:
             with tqdm(total=tune_requests, desc=f"Sync baud {baud}", leave=False) as bar:
                 rate = sync_rate(baud, bar)
 
@@ -214,10 +214,16 @@ class STM32BL:
         self.ser.timeout = (11 * 30 / orig_baud) * 1.3
 
         span, step = 0.1, 0.002
-
         steps = int(span / step)
-        baud_candidates = sorted(
-            {int(orig_baud * (1 + i * step)) for i in range(-steps, steps + 1) if orig_baud * (1 + i * step) > 0}
+
+        # Build baud list
+        baud_candidates = [orig_baud] * 5  # Try initial baud more times
+        baud_candidates += sorted(
+            {
+                int(orig_baud * (1 + i * step))
+                for i in range(-steps, steps + 1)
+                if int(orig_baud * (1 + i * step)) > 0 and int(orig_baud * (1 + i * step)) != orig_baud
+            }
         )
 
         best_baud = None
