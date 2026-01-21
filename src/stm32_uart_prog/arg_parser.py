@@ -6,6 +6,8 @@ from stm32_uart_prog.loggers import logger
 
 def args_get() -> argparse.Namespace:
     """Parse command line arguments."""
+    default_address = 0x08000000
+
     try:
         parser = argparse.ArgumentParser(description="STM32 UART Mass Programmer Launch Tool", allow_abbrev=False)
         parser.add_argument("--hexfile", type=str, help="Hex file to program", required=True)
@@ -17,21 +19,27 @@ def args_get() -> argparse.Namespace:
             required=True,
         )
         parser.add_argument(
-            "--retries",
+            "--attempts-erase",
             type=int,
-            help="Number of retries for sector erase command. Sector erased on any error occurence during programming",
+            help="Number of retries for sector erase command. If ran out of erase attempts, programming will be considered failed. Default %(default)s",
+            default=10,
+        )
+        parser.add_argument(
+            "--attempts",
+            type=int,
+            help="Number of retries for any command. If ran out of write/read attempts, sector will be erased and programming retried. Default %(default)s",
             default=10,
         )
         parser.add_argument(
             "--address",
             type=int,
-            help="The address from which the downloaded application will be executed",
-            default=0x08000000,
+            help=f"The address from which the downloaded application will be executed. Default 0x{default_address:08X}",
+            default=default_address,
         )
         parser.add_argument(
             "--baudrate",
             type=int,
-            help="UART baudrate",
+            help="UART baudrate. Default %(default)s",
             default=57600,
         )
         parser.add_argument(
@@ -42,7 +50,7 @@ def args_get() -> argparse.Namespace:
         parser.add_argument(
             "--tune-threshold",
             type=float,
-            help="Baudrate autotune success threshold (0.0-1.0)",
+            help="Baudrate autotune success threshold (0.0-1.0). Default %(default)s",
             default=0.8,
         )
         parser.add_argument(
@@ -50,7 +58,7 @@ def args_get() -> argparse.Namespace:
             type=str,
             choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
             default="DEBUG",
-            help="Logger threshold level",
+            help="Logger threshold level. Default %(default)s",
         )
 
         args = parser.parse_args()

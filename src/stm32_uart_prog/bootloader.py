@@ -12,8 +12,8 @@ from stm32_uart_prog.serial_port import SerialPort, serial
 
 
 class STM32BL:
-    retries = 1
-    cmd_attempts = 5
+    attempts_erase = 1
+    attempts_cmd = 1
     start_address = 0
     initial_baudrate = 57600
     failed_once = False
@@ -89,7 +89,7 @@ class STM32BL:
             raise RuntimeError("hexfile content is out of target's ROM boundaries")
 
         print(
-            f"firmware {MAGENTA}{hexfile}{RESET} ({BLUE}{self.data_len}{RESET} bytes) parsed and occupies sectors {BLUE}{self.used_sectors[0]}-{self.used_sectors[-1]}{RESET}"
+            f"Firmware {MAGENTA}{hexfile}{RESET} ({BLUE}{self.data_len}{RESET} bytes) parsed and occupies sectors {BLUE}{self.used_sectors[0]}-{self.used_sectors[-1]}{RESET}"
         )
         logger.info(f"firmware: {hexfile} ({self.data_len} bytes)")
         logger.info(f"used sectors: {self.used_sectors}")
@@ -220,10 +220,10 @@ class STM32BL:
 
         required_cmds = set(self.COMMAND_SET.values())
 
-        orig_cmd_attempts = self.cmd_attempts
+        orig_cmd_attempts = self.attempts_cmd
         orig_baud = self.ser.baudrate
 
-        self.cmd_attempts = 1
+        self.attempts_cmd = 1
         self.ser.timeout = (11 * 30 / orig_baud) * 1.3
 
         span, step = 0.1, 0.002
@@ -282,7 +282,7 @@ class STM32BL:
 
             raise RuntimeError("baudrate autodetection failed")
         finally:
-            self.cmd_attempts = orig_cmd_attempts
+            self.attempts_cmd = orig_cmd_attempts
             self.ser.timeout = (11 * 256 / self.baudrate) * 1.3  # Timeout to read one mem page based on new baudrate
 
             if best_rate:
@@ -378,17 +378,17 @@ class STM32BL:
         return self._read_ack()
 
     def cmd(self, cmd: int):
-        for attempt in range(self.cmd_attempts):
+        for attempt in range(3):
             self.ser.send_data(bytes([cmd, cmd ^ 0xFF]))
             if self._read_ack():
                 return True
             else:
-                logger.warning(f"target ID{self.__target_id}: command {hex(cmd)} attempt {attempt + 1} failed")
+                logger.warning(f"target ID{self.__target_id}: command {hex(cmd)} failed ({attempt + 1}/3) ")
                 continue
         logger.error(f"target ID{self.__target_id}: command {hex(cmd)} NACK")
         return False
 
-    def probe_bootloader(self, timeout=10.0, interval=0.01):
+    def probe_bootloader(self, timeout=1.0, interval=0.01):
         """
         Continuously send `0xFF` until any response is received
         or timeout expires.

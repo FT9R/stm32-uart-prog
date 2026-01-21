@@ -48,82 +48,96 @@ def format_duration(seconds: float):
 
 
 def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
-    attempt = 0
-    warn_detected = False
-
+    """Program hex into target MCU with separate program/verify attempts and conditional sector erase"""
     if not bl:
         raise ValueError("No bootloader instance provided")
 
+    warn_detected = False
+
     for sector in bl.used_sectors:
         total_bar.set_postfix(id=target_id, sector=f"{sector+1}/{len(bl.used_sectors)}")
-        sector_start, sector_size = bl.FLASH_SECTORS[sector]
-        chunks_in_sector = sector_size // bl.CHUNK
+        start, size = bl.FLASH_SECTORS[sector]
+        chunks = size // bl.CHUNK
+        sector_retry = False
 
-        for attempt in range(bl.retries):
-            if not bl.erase_sector(sector):
+        for erase_attempt in range(bl.attempts_erase):
+            if sector_retry and not bl.erase_sector(sector):
                 warn_detected = True
-                logger.warning(f"sector {sector}: erase attempt {attempt + 1} failed")
-                time.sleep(0.1)
-                tqdm.write(f"\t{YELLOW}Retry sector {sector}, attempt {attempt + 1}/{bl.retries}{RESET}")
+                logger.warning(f"sector {sector}: erase attempt {erase_attempt + 1} failed")
+                total_bar.write(f"\tRetry sector {sector}, erase attempt {erase_attempt + 1}/{bl.attempts_erase}")
                 continue
 
-            ok = True
+            all_ok = True
             credited = 0  # Chunks credited to total_bar in THIS attempt
-
-            for i in range(chunks_in_sector):
+            for i in range(chunks):
                 offset = i * bl.CHUNK
-                chunk_start_offset = sector_start + offset - bl.min_addr
-                chunk = bytes(bl.data[chunk_start_offset : chunk_start_offset + bl.CHUNK])
-                chunk_start = sector_start + offset
-
-                # Skip empty flash
+                chunk_start = start + offset
+                chunk = bytes(bl.data[chunk_start - bl.min_addr : chunk_start - bl.min_addr + bl.CHUNK])
                 if all(b == 0xFF for b in chunk):
                     total_bar.update(1)
                     credited += 1
                     continue
 
                 # Program
-                if not bl.write_mem(chunk_start, chunk):
-                    ok = False
-                    warn_detected = True
-                    logger.warning(f"sector {sector}: write failed at 0x{chunk_start:08X}")
+                for attempt in range(bl.attempts_cmd):
+                    if bl.write_mem(chunk_start, chunk):
+                        break
+                    logger.warning(
+                        f"sector {sector}: write failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}"
+                    )
                     if not bl.probe_bootloader():
-                        logger.warning("hard resync")
                         bl.ser.send_data(bl.ACTIVATE.to_bytes())
                         bl._read_ack()
+                    time.sleep(0.1)
+                else:
+                    total_bar.write(f"\t{YELLOW}Sector {sector}: write failed at 0x{chunk_start:08X}{RESET}")
+                    warn_detected = True
+                    sector_retry = True
+                    all_ok = False
                     break
 
                 # Verify
-                if bl.read_mem(chunk_start, len(chunk)) != chunk:
-                    ok = False
-                    warn_detected = True
+                for attempt in range(bl.attempts_cmd):
+                    if bl.read_mem(chunk_start, len(chunk)) == chunk:
+                        total_bar.update(1)
+                        credited += 1
+                        break
+                    logger.warning(
+                        f"sector {sector}: verify failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}"
+                    )
+                    time.sleep(0.1)
+                else:
                     logger.warning(f"sector {sector}: verify failed at 0x{chunk_start:08X}")
+                    total_bar.write(f"\t{YELLOW}Sector {sector}: verify failed at 0x{chunk_start:08X}{RESET}")
+                    warn_detected = True
+                    sector_retry = True
+                    all_ok = False
                     break
-                total_bar.update(1)
-                credited += 1
 
-            if ok:
-                tqdm.write(f"\tSector {BLUE}{sector}{RESET} (0x{sector_start:08X}) {GREEN}verified{RESET}")
+            if all_ok:
+                total_bar.write(f"\tSector {BLUE}{sector}{RESET} (0x{start:08X}) {GREEN}verified{RESET}")
                 break
             else:
                 # Rollback total progress from this failed attempt
                 total_bar.update(-credited)
-                logger.error(f"sector {sector}: attempt {attempt + 1} failed")
-                tqdm.write(f"\t{YELLOW}Retry sector {sector}, attempt {attempt + 1}/{bl.retries}{RESET}")
+                logger.error(f"sector {sector}: attempt {erase_attempt + 1} failed")
+                total_bar.write(
+                    f"\t{YELLOW}Retry sector {sector}, attempt {erase_attempt + 1}/{bl.attempts_erase}{RESET}"
+                )
         else:
-            logger.error(f"sector {sector} failed permanently")
+            logger.error(f"sector {sector}: failed permanently after {bl.attempts_erase} erase attempts")
             return "Fail"
 
-    for _ in range(5):
+    # Start application
+    for attempt in range(bl.attempts_cmd):
         if bl.start_application(bl.start_address):
             logger.info(f"target {target_id}: application started at 0x{bl.start_address:08X}")
             break
-        else:
-            logger.warning(f"target {target_id}: failed to start application at 0x{bl.start_address:08X}, retrying")
-            time.sleep(0.5)
+        time.sleep(0.5)
     else:
-        logger.error(f"target {target_id}: failed to start application at 0x{bl.start_address:08X} permanently")
+        logger.error(f"target {target_id}: failed to start application")
         return "Fail"
+
     return "Success" if not warn_detected else "Warning"
 
 
@@ -145,7 +159,8 @@ def main():
     hexfile = os.path.abspath(args.hexfile)
     targets = tuple(args.targets)
     prog_status = {id: "Undefined" for id in targets}
-    STM32BL.retries = args.retries
+    STM32BL.attempts_erase = args.attempts_erase
+    STM32BL.attempts_cmd = args.attempts
 
     try:
         # Baudrate check
@@ -184,7 +199,7 @@ def main():
                 continue
             port, desc = ports[index]
             break
-        sp = SerialPort(port, STM32BL.initial_baudrate, timeout=3)  # Open serial port
+        sp = SerialPort(port, STM32BL.initial_baudrate, timeout=0.5)  # Open serial port
 
         bl = STM32BL(
             sp,
