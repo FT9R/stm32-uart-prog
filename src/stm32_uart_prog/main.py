@@ -166,7 +166,7 @@ def main():
         # Baudrate check
         if args.baudrate not in STM32BL.BAUDRATES:
             if not proposal_to_continue(
-                f"{YELLOW}Baudrate {args.baudrate} does not fit into {STM32BL.BAUDRATES}.\nContinue? (yes/no){RESET}",
+                f"{YELLOW}Baudrate {args.baudrate} does not fit into {STM32BL.BAUDRATES}\nContinue? (yes/no){RESET}",
                 "Provide proper baudrate",
             ):
                 raise InterruptedError
@@ -250,7 +250,7 @@ def main():
                         success_threshold=args.tune_threshold,
                     )
                     if not args.no_tune:
-                        bl.baud_tune(total_bar, 2000, args.tune_threshold)
+                        bl.baud_tune(total_bar, 1000, args.tune_threshold)
                     pid = bl.get_pid()
                     if not pid:
                         raise RuntimeError("could not get product id")

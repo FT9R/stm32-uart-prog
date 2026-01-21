@@ -28,7 +28,7 @@ Data verified after all occupied sectors erased and written with firmware data
 ![STM32CubeProgrammer write dia](doc/logic/WriteMem_ReadMem.png)
 
 ## stm32-uart-prog data flow
-Data verified after every page/chunk write, if verify fails - erase sector again and try another attempt
+Data verified after every page/chunk write, if verify fails `attempts` times - erase sector again and try another attempt
 ![stm32-uart-prog prog dia](doc/logic/stm32-uart-prog.png)
 ![stm32-uart-prog write/read dia](doc/logic/WriteChunk_ReadChunk.png)
 

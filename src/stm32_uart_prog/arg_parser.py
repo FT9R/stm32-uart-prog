@@ -57,7 +57,7 @@ def args_get() -> argparse.Namespace:
             "--loglvl",
             type=str,
             choices=["NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-            default="DEBUG",
+            default="ERROR",
             help="Logger threshold level. Default %(default)s",
         )
 
