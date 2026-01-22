@@ -154,7 +154,7 @@ class STM32BL:
             return response_count / tune_requests
 
         # Build baud list
-        baud_candidates = [self.initial_baudrate] * 50  # Try initial baud more times
+        baud_candidates = [self.initial_baudrate] * 20  # Try initial baud more times
         baud_candidates += sorted(
             {
                 int(self.initial_baudrate * (1 + i * step))
@@ -382,7 +382,7 @@ class STM32BL:
         return self._read_ack()
 
     def cmd(self, cmd: int):
-        for attempt in range(3):
+        for attempt in range(self.attempts_cmd):
             self.ser.send_data(bytes([cmd, cmd ^ 0xFF]))
             if self._read_ack():
                 return True
