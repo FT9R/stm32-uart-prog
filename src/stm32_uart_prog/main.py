@@ -199,7 +199,7 @@ def main():
                 continue
             port, desc = ports[index]
             break
-        sp = SerialPort(port, STM32BL.initial_baudrate, timeout=0.5)  # Open serial port
+        sp = SerialPort(port, STM32BL.initial_baudrate, timeout=0.1)  # Open serial port
 
         bl = STM32BL(
             sp,
@@ -234,19 +234,18 @@ def main():
                     # If not in bootloader mode, target wont respond
                     if bl.sync(total_bar, target_id, skip_tune=True):
                         total_bar.write("Bootloader already activated")
+                    else:
+                        # Mute all devices before starting, so they won't interfere with each other
+                        retry(lambda: be_quiet(sp, bl.baudrate))
+                        total_bar.refresh()
 
-                    # Mute all devices before starting, so they won't interfere with each other
-                    retry(lambda: be_quiet(sp, bl.baudrate))
-                    total_bar.refresh()
-
-                    # Put target into bootloader mode
-                    retry(lambda: enter_bootloader(sp, target_id, bl.baudrate))
+                        # Put target into bootloader mode
+                        retry(lambda: enter_bootloader(sp, target_id, bl.baudrate))
                     total_bar.refresh()
                     bl.sync(
                         total_bar,
                         target_id,
                         skip_tune=args.no_tune,
-                        tune_requests=2000,
                         success_threshold=args.tune_threshold,
                     )
                     if not args.no_tune:
@@ -257,6 +256,7 @@ def main():
                     if int(pid, base=16) not in bl.SUPPORTED_DEVICE_ID:
                         raise NotImplementedError(f"no such device support with PID {pid}")
                     total_bar.refresh()
+                    time.sleep(0.1)
 
                     # Check supported commands
                     sup_commands = bl.get_commands()
@@ -264,6 +264,7 @@ def main():
                         if cmd not in sup_commands:
                             raise RuntimeError(f"required bootloader command not supported: {cmd_name} ({hex(cmd)})")
                     logger.info(f"target {target_id}, supported commands: {sup_commands.hex(sep=' ')}")
+                    time.sleep(0.1)
 
                     # Program the target
                     prog_status[target_id] = program_hex(bl, target_id, total_bar)
@@ -274,6 +275,8 @@ def main():
                     else:
                         bl.failed_once = True
                         total_bar.write(f"{RED}Programming failed{RESET}")
+                except InterruptedError:
+                    raise
                 except Exception as e:
                     bl.failed_once = True
                     total_bar.write(f"{RED}Programming failed ({e}){RESET}")

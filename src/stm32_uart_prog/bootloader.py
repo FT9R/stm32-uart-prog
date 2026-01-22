@@ -114,7 +114,7 @@ class STM32BL:
         total_bar: tqdm,
         dev_id: int,
         skip_tune: bool = False,
-        tune_requests: int = 1000,
+        tune_requests: int = 500,
         success_threshold: float = 0.7,
     ):
         self.__target_id = dev_id
@@ -126,8 +126,8 @@ class STM32BL:
             for _ in range(5):
                 self.ser.send_data(self.ACTIVATE.to_bytes())
                 time.sleep(0.1)
-                r = self.ser.recv_all()
-                if r:
+                resp = self.ser.recv_all()
+                if resp or any(b in (self.ACK, self.NACK) for b in resp):
                     activated = True
                     break
             self.ser.reset_input()
@@ -144,11 +144,11 @@ class STM32BL:
             for _ in range(tune_requests):
                 bar.update(1)
                 self.ser.send_data(b"\x7f")
-                time.sleep(max(byte_time * 2, 0.001))
+                time.sleep(max(byte_time * 2, 0.002))
                 self.ser.send_data(b"\x7f")
-                time.sleep(max(byte_time * 4, 0.001))
-                r = self.ser.recv_all()
-                if not r or r[0] not in (self.ACK, self.NACK):
+                time.sleep(max(byte_time * 4, 0.005))
+                resp = self.ser.recv_all()
+                if not resp or not any(b in (self.ACK, self.NACK) for b in resp):
                     break
                 response_count += 1
             return response_count / tune_requests
@@ -200,13 +200,15 @@ class STM32BL:
             raise RuntimeError(f"target ID{self.__target_id} - could not sync baudrate")
 
         # Apply selected baud and finalize
+        self.probe_bootloader(10, 0.01)
+        time.sleep(0.1)
+        self.ser.reset_input()
         self.baudrate = self.ser.baudrate = best_baud
         total_bar.write(f"Sync at baudrate {best_baud} ({best_rate:.1%})")
         if not math.isclose(best_baud, self.initial_baudrate, rel_tol=0.01):
             total_bar.write(
                 f"{YELLOW}Baudrate after sync differs from initial: {best_baud}/{self.initial_baudrate}{RESET}"
             )
-        self.ser.reset_input()
         return True
 
     def baud_tune(self, total_bar: tqdm, tune_requests=500, success_threshold=0.7):
@@ -224,13 +226,13 @@ class STM32BL:
         orig_baud = self.ser.baudrate
 
         self.attempts_cmd = 1
-        self.ser.timeout = (11 * 30 / orig_baud) * 1.3
+        self.ser.timeout = 11 * 20 / orig_baud * 30
 
         span, step = 0.1, 0.002
         steps = int(span / step)
 
         # Build baud list
-        baud_candidates = [orig_baud] * 5  # Try initial baud more times
+        baud_candidates = [orig_baud] * 10  # Try initial baud more times
         baud_candidates += sorted(
             {
                 int(orig_baud * (1 + i * step))
@@ -283,7 +285,9 @@ class STM32BL:
             raise RuntimeError("baudrate autodetection failed")
         finally:
             self.attempts_cmd = orig_cmd_attempts
+            self.ser.reset_input()
             self.ser.timeout = (11 * 256 / self.baudrate) * 1.3  # Timeout to read one mem page based on new baudrate
+            time.sleep(0.1)
 
             if best_rate:
                 if self.baudrate != orig_baud:
@@ -388,7 +392,7 @@ class STM32BL:
         logger.error(f"target ID{self.__target_id}: command {hex(cmd)} NACK")
         return False
 
-    def probe_bootloader(self, timeout=1.0, interval=0.01):
+    def probe_bootloader(self, timeout=5.0, interval=0.005):
         """
         Continuously send `0xFF` until any response is received
         or timeout expires.
@@ -397,7 +401,6 @@ class STM32BL:
             bytes: first received byte, or b'' if timeout or error
         """
         end = time.monotonic() + timeout
-        timeout_orig = None
         logger.warning(f"target ID{self.__target_id}: resync requested")
 
         try:
@@ -406,12 +409,10 @@ class STM32BL:
                     f"target ID{self.__target_id}: serial port not open during probe_bootloader"
                 )
 
-            timeout_orig = self.ser.timeout
-            self.ser.timeout = interval
-
             while time.monotonic() < end:
                 self.ser.send_data(b"\xff")
-                resp = self.ser.recv_data(1)
+                time.sleep(interval)
+                resp = self.ser.recv_all()
                 if resp:
                     return True
             return False
@@ -419,13 +420,6 @@ class STM32BL:
             logger.exception(se)
             self.ser.reconnect(se)
             return False
-        finally:
-            if timeout_orig is not None:
-                try:
-                    time.sleep(0.1)
-                    self.ser.timeout = timeout_orig
-                except Exception:
-                    pass
 
     @classmethod
     def sector_for_address(cls, addr):
