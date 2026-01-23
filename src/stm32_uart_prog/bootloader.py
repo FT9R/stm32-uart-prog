@@ -225,7 +225,7 @@ class STM32BL:
         orig_cmd_attempts = self.attempts_cmd
         orig_baud = self.ser.baudrate
 
-        self.attempts_cmd = 1
+        self.attempts_cmd = 2
         self.ser.timeout = 11 * 20 / orig_baud * 30
 
         span, step = 0.1, 0.002

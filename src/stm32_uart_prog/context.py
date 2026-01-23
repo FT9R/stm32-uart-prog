@@ -33,6 +33,7 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
     orig_parity = serial.PARITY_EVEN
 
     try:
+        time.sleep(7)  # Wait while previous device enters main app
         logger.info("sending mute command")
 
         # Cache original settings
@@ -129,4 +130,4 @@ def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
         sp.baudrate = orig_baudrate
         sp.parity = orig_parity
         sp.reset_input()
-        time.sleep(5)  # Wait for device to enter bootloader
+        time.sleep(7)  # Wait for device to enter bootloader

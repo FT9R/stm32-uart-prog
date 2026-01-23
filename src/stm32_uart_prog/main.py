@@ -61,6 +61,10 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
         sector_retry = False
 
         for erase_attempt in range(bl.attempts_erase):
+            time.sleep(0.1)
+            bl.ser.reset_input()
+            bl.ser.reset_input_buffer()
+            bl.ser.reset_output_buffer()
             if sector_retry and not bl.erase_sector(sector):
                 warn_detected = True
                 logger.warning(f"sector {sector}: erase attempt {erase_attempt + 1} failed")
