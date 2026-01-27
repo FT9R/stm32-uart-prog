@@ -200,7 +200,7 @@ class STM32BL:
             raise RuntimeError(f"target ID{self.__target_id} - could not sync baudrate")
 
         # Apply selected baud and finalize
-        self.probe_bootloader(10, 0.01)
+        self.probe_bootloader(10, 0.01, verbose=False)
         time.sleep(0.1)
         self.ser.reset_input()
         self.baudrate = self.ser.baudrate = best_baud
@@ -392,7 +392,7 @@ class STM32BL:
         logger.error(f"target ID{self.__target_id}: command {hex(cmd)} NACK")
         return False
 
-    def probe_bootloader(self, timeout=5.0, interval=0.005):
+    def probe_bootloader(self, timeout=5.0, interval=0.005, verbose=True):
         """
         Continuously send `0xFF` until any response is received
         or timeout expires.
@@ -401,7 +401,8 @@ class STM32BL:
             bytes: first received byte, or b'' if timeout or error
         """
         end = time.monotonic() + timeout
-        logger.warning(f"target ID{self.__target_id}: resync requested")
+        if verbose:
+            logger.warning(f"target ID{self.__target_id}: resync requested")
 
         try:
             if not self.ser or not self.ser.is_open:

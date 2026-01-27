@@ -58,14 +58,13 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
         total_bar.set_postfix(id=target_id, sector=f"{sector+1}/{len(bl.used_sectors)}")
         start, size = bl.FLASH_SECTORS[sector]
         chunks = size // bl.CHUNK
-        sector_retry = False
 
         for erase_attempt in range(bl.attempts_erase):
             time.sleep(0.1)
             bl.ser.reset_input()
             bl.ser.reset_input_buffer()
             bl.ser.reset_output_buffer()
-            if sector_retry and not bl.erase_sector(sector):
+            if not bl.erase_sector(sector):
                 warn_detected = True
                 logger.warning(f"sector {sector}: erase attempt {erase_attempt + 1} failed")
                 total_bar.write(f"\tRetry sector {sector}, erase attempt {erase_attempt + 1}/{bl.attempts_erase}")
@@ -96,7 +95,6 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                 else:
                     total_bar.write(f"\t{YELLOW}Sector {sector}: write failed at 0x{chunk_start:08X}{RESET}")
                     warn_detected = True
-                    sector_retry = True
                     all_ok = False
                     break
 
@@ -114,7 +112,6 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                     logger.warning(f"sector {sector}: verify failed at 0x{chunk_start:08X}")
                     total_bar.write(f"\t{YELLOW}Sector {sector}: verify failed at 0x{chunk_start:08X}{RESET}")
                     warn_detected = True
-                    sector_retry = True
                     all_ok = False
                     break
 
