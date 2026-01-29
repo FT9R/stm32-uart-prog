@@ -1,3 +1,4 @@
+import array
 import math
 import os
 import struct
@@ -59,7 +60,7 @@ class STM32BL:
         # "get_checksum": 0xA1,
     }
 
-    def __init__(self, sp: SerialPort, hexfile: str = ""):
+    def __init__(self, sp: SerialPort, hexfile: str = "", crc32_ceil_bytes: int = 0):
         if not sp:
             raise ValueError("no SerialPort instance provided")
         if not hexfile:
@@ -88,11 +89,55 @@ class STM32BL:
         if self.max_addr > self.FLASH_SECTORS[-1][0] + self.FLASH_SECTORS[-1][1] - 1:
             raise RuntimeError("hexfile content is out of target's ROM boundaries")
 
+        # Calculate CRC32 STM32-style
+        self.crc32 = self.__stm32_crc32(crc32_ceil_bytes // 4)
+
         print(
             f"Firmware {MAGENTA}{hexfile}{RESET} ({BLUE}{self.data_len}{RESET} bytes) parsed and occupies sectors {BLUE}{self.used_sectors[0]}-{self.used_sectors[-1]}{RESET}"
         )
+        print(f"CRC32 (STM32): {BLUE}0x{self.crc32:08X}{RESET}")
         logger.info(f"firmware: {hexfile} ({self.data_len} bytes)")
         logger.info(f"used sectors: {self.used_sectors}")
+        logger.info(f"CRC32: 0x{self.crc32:08X}")
+
+    def __stm32_crc32(self, length_words: int = 0) -> int:
+        """
+        Calculate CRC32 matching STM32 hardware CRC unit.
+        """
+
+        POLY = 0x04C11DB7
+        crc = 0xFFFFFFFF
+
+        # Convert data to bytes
+        if isinstance(self.data, array.array):
+            data_bytes = self.data.tobytes()
+        else:
+            data_bytes = bytes(self.data)
+
+        # Determine CRC range
+        if length_words:
+            # Extend to specified length
+            target_len = length_words * 4
+            if len(data_bytes) >= target_len:
+                padded_data = data_bytes[:target_len]
+            else:
+                padded_data = data_bytes + b"\xff" * (target_len - len(data_bytes))
+        else:
+            # Pad to word boundary
+            padding = (4 - len(data_bytes) % 4) % 4
+            padded_data = data_bytes + b"\xff" * padding
+
+        # Process 32-bit words
+        for i in range(0, len(padded_data), 4):
+            word = int.from_bytes(padded_data[i : i + 4], "little")
+            crc ^= word
+            for _ in range(32):
+                if crc & 0x80000000:
+                    crc = (crc << 1) ^ POLY
+                else:
+                    crc <<= 1
+                crc &= 0xFFFFFFFF
+        return crc
 
     def _checksum(self, data):
         c = 0

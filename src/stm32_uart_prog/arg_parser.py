@@ -37,6 +37,14 @@ def args_get() -> argparse.Namespace:
             default=default_address,
         )
         parser.add_argument(
+            "--crc-range",
+            type=lambda x: int(x, 0),
+            help="Calculate STM32-like CRC32 for flash range up to this address (in bytes). "
+            "If firmware is smaller, remaining bytes are treated as 0xFF. "
+            "Defaults to firmware size aligned to 4-byte boundary",
+            default=0,
+        )
+        parser.add_argument(
             "--baudrate",
             type=int,
             help="UART baudrate. Default %(default)s",

@@ -202,10 +202,7 @@ def main():
             break
         sp = SerialPort(port, STM32BL.initial_baudrate, timeout=0.1)  # Open serial port
 
-        bl = STM32BL(
-            sp,
-            hexfile=hexfile,
-        )
+        bl = STM32BL(sp, hexfile=hexfile, crc32_ceil_bytes=args.crc_range)
         if bl.min_addr != args.address:
             if not proposal_to_continue(
                 f"{YELLOW}Non-default application start address detected: from hexfile - {hex(bl.min_addr)}, from args - {hex(args.address)}.\nContinue? (yes/no){RESET}",
