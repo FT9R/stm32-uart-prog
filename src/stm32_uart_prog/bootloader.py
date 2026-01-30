@@ -60,16 +60,12 @@ class STM32BL:
         # "get_checksum": 0xA1,
     }
 
-    def __init__(self, sp: SerialPort, hexfile: str = "", crc32_ceil_bytes: int = 0):
-        if not sp:
-            raise ValueError("no SerialPort instance provided")
+    def __init__(self, hexfile: str = "", crc32_ceil_bytes: int = 0):
         if not hexfile:
             raise ValueError("hexfile path is required")
         if not os.path.exists(hexfile):
             raise FileNotFoundError(f"hexfile not found: {hexfile}")
 
-        self.ser = sp
-        self.baudrate = self.initial_baudrate = sp.baudrate
         self.ih = IntelHex(hexfile)
         if not self.ih:
             raise AttributeError("could not parse hexfile")
@@ -156,6 +152,7 @@ class STM32BL:
 
     def sync(
         self,
+        sp: SerialPort,
         total_bar: tqdm,
         dev_id: int,
         skip_tune: bool = False,
@@ -165,6 +162,8 @@ class STM32BL:
         self.__target_id = dev_id
         span, step = 0.2, 0.005
         steps = int(span / step)
+        self.ser = sp
+        self.baudrate = self.initial_baudrate = sp.baudrate
 
         if skip_tune:
             activated = False

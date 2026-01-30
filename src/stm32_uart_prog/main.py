@@ -180,6 +180,17 @@ def main():
         if not os.path.isfile(hexfile):
             raise RuntimeError(f"hexfile '{hexfile}' not found")
 
+        bl = STM32BL(hexfile=hexfile, crc32_ceil_bytes=args.crc_range)
+        if bl.min_addr != args.address:
+            if not proposal_to_continue(
+                f"{YELLOW}Non-default application start address detected: from hexfile - {hex(bl.min_addr)}, from args - {hex(args.address)}.\nContinue? (yes/no){RESET}",
+                "Check addresses match",
+            ):
+                raise InterruptedError
+        bl.start_address = args.address
+        chunks_per_target = sum(bl.FLASH_SECTORS[s][1] // bl.CHUNK for s in bl.used_sectors)
+        total_chunks = chunks_per_target * len(targets)
+
         # Set the connection up
         ports = SerialPort.get_ports()
         if not ports:
@@ -202,18 +213,7 @@ def main():
             break
         sp = SerialPort(port, STM32BL.initial_baudrate, timeout=0.1)  # Open serial port
 
-        bl = STM32BL(sp, hexfile=hexfile, crc32_ceil_bytes=args.crc_range)
-        if bl.min_addr != args.address:
-            if not proposal_to_continue(
-                f"{YELLOW}Non-default application start address detected: from hexfile - {hex(bl.min_addr)}, from args - {hex(args.address)}.\nContinue? (yes/no){RESET}",
-                "Check addresses match",
-            ):
-                raise InterruptedError
-        bl.start_address = args.address
-        chunks_per_target = sum(bl.FLASH_SECTORS[s][1] // bl.CHUNK for s in bl.used_sectors)
-        total_chunks = chunks_per_target * len(targets)
         start_time = time.time()
-
         with tqdm(
             desc="Tot", total=total_chunks, leave=False, unit="chunk", dynamic_ncols=True, smoothing=0.8, position=1
         ) as total_bar:
@@ -230,7 +230,7 @@ def main():
                     # Send activate bootloader command first, even if not in bootloader mode
                     # This helps to ensure that target will calculate proper baudrate/parity later
                     # If not in bootloader mode, target wont respond
-                    if bl.sync(total_bar, target_id, skip_tune=True):
+                    if bl.sync(sp, total_bar, target_id, skip_tune=True):
                         total_bar.write("Bootloader already activated")
                     else:
                         # Mute all devices before starting, so they won't interfere with each other
@@ -241,6 +241,7 @@ def main():
                         retry(lambda: enter_bootloader(sp, target_id, bl.baudrate))
                     total_bar.refresh()
                     bl.sync(
+                        sp,
                         total_bar,
                         target_id,
                         skip_tune=args.no_tune,
