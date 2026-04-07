@@ -27,6 +27,7 @@ class STM32BL:
     SUPPORTED_DEVICE_ID = [0x0413]
     BAUDRATES = [19200, 38400, 56000, 57600, 74880, 76800, 115200, 230400]
 
+    SECTOR_ERASE_TIME_MAX=float(4+1) # [sec]
     FLASH_SECTORS = [
         (0x08000000, 16 * 1024),
         (0x08004000, 16 * 1024),
@@ -141,8 +142,8 @@ class STM32BL:
             c ^= b
         return c
 
-    def _read_ack(self):
-        r = self.ser.recv_data(1)
+    def _read_ack(self, timeout:float=0):
+        r = self.ser.recv_data(1, timeout)
         if not r or r[0] != self.ACK:
             self.probe_bootloader(0.5)  # Reconstruct byte order
             time.sleep(0.05)
@@ -414,8 +415,7 @@ class STM32BL:
         chk = self._checksum(payload)
         self.ser.send_data(payload + bytes([chk]))
 
-        time.sleep(1)  # Erase can take time
-        return self._read_ack()
+        return self._read_ack(self.SECTOR_ERASE_TIME_MAX)
 
     def start_application(self, addr: int):
         if not self.cmd(self.COMMAND_SET["go"]):

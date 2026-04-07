@@ -58,7 +58,6 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
         )
         frame += bytes([getCrc8(frame)])
 
-        time.sleep(0.5)
         for _ in range(5):
             sp.send_data(frame)
             time.sleep(0.5)
