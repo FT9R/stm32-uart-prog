@@ -1,7 +1,7 @@
 import argparse
 from typing import Dict, List, Union, cast
 
-from stm32_uart_prog.loggers import logger
+from .loggers import logger
 
 
 def args_get() -> argparse.Namespace:

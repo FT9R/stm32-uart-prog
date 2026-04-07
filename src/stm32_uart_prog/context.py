@@ -3,8 +3,8 @@
 import struct
 import time
 
-from stm32_uart_prog.loggers import Loggers, logger
-from stm32_uart_prog.serial_port import SerialPort, serial
+from .loggers import Loggers, logger
+from .serial_port import SerialPort, serial
 
 
 def getCrc8(buffer):
@@ -41,7 +41,7 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
         orig_parity = sp.parity
 
         # Force non bootloader (application) settings
-        sp.baudrate = 115200
+        sp.baudrate = 57600
         sp.parity = serial.PARITY_NONE
 
         # Frame without CRC
@@ -97,7 +97,7 @@ def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
         orig_parity = sp.parity
 
         # Force non bootloader (application) settings
-        sp.baudrate = 115200
+        sp.baudrate = 57600
         sp.parity = serial.PARITY_NONE
 
         # Frame without CRC

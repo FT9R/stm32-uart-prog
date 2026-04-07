@@ -7,9 +7,9 @@ import time
 from intelhex import IntelHex, IntelHexError
 from tqdm import tqdm
 
-from stm32_uart_prog.colors import *
-from stm32_uart_prog.loggers import Loggers, logger
-from stm32_uart_prog.serial_port import SerialPort, serial
+from .colors import *
+from .loggers import Loggers, logger
+from .serial_port import SerialPort, serial
 
 
 class STM32BL:

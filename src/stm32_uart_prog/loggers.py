@@ -3,7 +3,7 @@ import os
 import sys
 from logging.handlers import RotatingFileHandler
 
-from stm32_uart_prog.colors import *
+from .colors import *
 
 
 class LevelFilter(logging.Filter):

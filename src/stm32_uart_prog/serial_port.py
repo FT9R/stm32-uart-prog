@@ -3,7 +3,7 @@ import time
 
 import serial.tools.list_ports
 
-from stm32_uart_prog.loggers import logger
+from .loggers import logger
 
 
 class SerialPort(serial.Serial):

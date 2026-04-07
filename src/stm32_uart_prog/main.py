@@ -3,9 +3,9 @@ from datetime import timedelta
 
 from tqdm import tqdm
 
-from stm32_uart_prog.arg_parser import args_get
-from stm32_uart_prog.bootloader import *
-from stm32_uart_prog.context import be_quiet, enter_bootloader
+from .arg_parser import args_get
+from .bootloader import *
+from .context import be_quiet, enter_bootloader
 
 
 def proposal_to_continue(proposal: str, interrupted: str, continued: str = " "):
