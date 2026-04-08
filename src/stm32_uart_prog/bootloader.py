@@ -27,7 +27,7 @@ class STM32BL:
     SUPPORTED_DEVICE_ID = [0x0413]
     BAUDRATES = [19200, 38400, 56000, 57600, 74880, 76800, 115200, 230400]
 
-    SECTOR_ERASE_TIME_MAX=float(4+1) # [sec]
+    SECTOR_ERASE_TIME_MAX = float(4 + 1)  # [sec]
     FLASH_SECTORS = [
         (0x08000000, 16 * 1024),
         (0x08004000, 16 * 1024),
@@ -60,6 +60,7 @@ class STM32BL:
         # "readout_unprotect": 0x92,
         # "get_checksum": 0xA1,
     }
+    COMMAND_REQUIRED = {f"0x{b:02X}" for b in COMMAND_SET.values()}
 
     def __init__(self, hexfile: str = "", crc32_ceil_bytes: int = 0):
         if not os.path.isfile(hexfile):
@@ -80,7 +81,7 @@ class STM32BL:
             raise ValueError("hexfile contains no data")
         self.min_addr: int = min(addresses)
         self.max_addr: int = max(addresses)
-        self.used_sectors = sorted({s for addr in addresses if (s := self.sector_for_address(addr)) is not None})
+        self.used_sectors = sorted({s for addr in addresses if (s := self.__sector_for_address(addr)) is not None})
         if not self.used_sectors:
             raise ValueError("hexfile doesn't map to any flash sectors")
         if self.max_addr > self.FLASH_SECTORS[-1][0] + self.FLASH_SECTORS[-1][1] - 1:
@@ -136,13 +137,7 @@ class STM32BL:
                 crc &= 0xFFFFFFFF
         return crc
 
-    def _checksum(self, data):
-        c = 0
-        for b in data:
-            c ^= b
-        return c
-
-    def _read_ack(self, timeout:float=0):
+    def _read_ack(self, timeout: float = 0):
         r = self.ser.recv_data(1, timeout)
         if not r or r[0] != self.ACK:
             self.probe_bootloader(0.5)  # Reconstruct byte order
@@ -265,8 +260,6 @@ class STM32BL:
         - otherwise picks best baud >= `success_threshold`
         """
 
-        required_cmds = set(self.COMMAND_SET.values())
-
         orig_cmd_attempts = self.attempts_cmd
         orig_baud = self.ser.baudrate
 
@@ -309,7 +302,7 @@ class STM32BL:
                     for _ in range(tune_requests):
                         bar.update(1)
                         cmds = self.get_commands()
-                        if not cmds or not required_cmds.issubset(cmds):
+                        if not cmds or not self.COMMAND_REQUIRED.issubset(cmds):
                             break
                         response_count += 1
 
@@ -340,22 +333,22 @@ class STM32BL:
             else:
                 total_bar.write(f"{RED}No baudrate candidate found{RESET}")
 
-    def get_commands(self):
-        cmds = bytes()
-
+    def get_commands(self) -> set[str]:
         if not self.cmd(self.COMMAND_SET["get"]):
-            return bytes()
+            return set()
 
         cmds_len = self.ser.recv_data(1)
         if not cmds_len:
-            return bytes()
+            return set()
 
-        cmds = self.ser.recv_data(cmds_len[0] + 1)
-        if len(cmds) != cmds_len[0] + 1:
-            return bytes()
+        expected_len = cmds_len[0] + 1
+        cmds = self.ser.recv_data(expected_len)
+
+        if len(cmds) != expected_len:
+            return set()
 
         self._read_ack()
-        return cmds
+        return {f"0x{b:02X}" for b in cmds}
 
     def get_pid(self):
         pid = bytes()
@@ -379,7 +372,7 @@ class STM32BL:
             return bytes()
 
         a = struct.pack(">I", addr)
-        self.ser.send_data(a + bytes([self._checksum(a)]))
+        self.ser.send_data(a + bytes([self.__checksum(a)]))
         if not self._read_ack():
             return bytes()
 
@@ -393,14 +386,14 @@ class STM32BL:
             return False
 
         a = struct.pack(">I", addr)
-        self.ser.send_data(a + bytes([self._checksum(a)]))
+        self.ser.send_data(a + bytes([self.__checksum(a)]))
         if not self._read_ack():
             return False
 
         data_len = len(data)
         self.ser.send_data(bytes([data_len - 1]))
         self.ser.send_data(bytes(data))
-        self.ser.send_data(bytes([self._checksum(bytes([data_len - 1]) + data)]))
+        self.ser.send_data(bytes([self.__checksum(bytes([data_len - 1]) + data)]))
         return self._read_ack()
 
     def erase_sector(self, sector: int):
@@ -412,7 +405,7 @@ class STM32BL:
         payload += (0).to_bytes(2, "big")  # N = 0x00 (one sector)
         payload += sector.to_bytes(2, "big")  # Sector number
 
-        chk = self._checksum(payload)
+        chk = self.__checksum(payload)
         self.ser.send_data(payload + bytes([chk]))
 
         return self._read_ack(self.SECTOR_ERASE_TIME_MAX)
@@ -422,7 +415,7 @@ class STM32BL:
             return False
 
         a = struct.pack(">I", addr)  # > = big-endian, I = uint32_t
-        self.ser.send_data(a + bytes([self._checksum(a)]))
+        self.ser.send_data(a + bytes([self.__checksum(a)]))
         return self._read_ack()
 
     def cmd(self, cmd: int):
@@ -467,7 +460,14 @@ class STM32BL:
             return False
 
     @classmethod
-    def sector_for_address(cls, addr):
+    def __checksum(cls, data):
+        c = 0
+        for b in data:
+            c ^= b
+        return c
+
+    @classmethod
+    def __sector_for_address(cls, addr):
         for i, (start, size) in enumerate(cls.FLASH_SECTORS):
             if start <= addr < start + size:
                 return i

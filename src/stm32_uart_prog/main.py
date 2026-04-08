@@ -234,10 +234,11 @@ def main():
 
                     # Check supported commands
                     sup_commands = bl.get_commands()
-                    for cmd_name, cmd in bl.COMMAND_SET.items():
-                        if cmd not in sup_commands:
-                            raise RuntimeError(f"required bootloader command not supported: {cmd_name} ({hex(cmd)})")
-                    logger.info(f"target {target_id}, supported commands: {sup_commands.hex(sep=' ').upper()}")
+                    if not bl.COMMAND_REQUIRED.issubset(sup_commands):
+                        raise RuntimeError(
+                            f"required bootloader commands not supported: {bl.COMMAND_REQUIRED.difference(sup_commands)}"
+                        )
+                    logger.info(f"target {target_id}, supported commands: {sup_commands}")
                     time.sleep(0.1)
 
                     # Program the target
