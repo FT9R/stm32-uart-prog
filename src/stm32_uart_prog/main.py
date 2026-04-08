@@ -173,12 +173,6 @@ def main():
                 raise InterruptedError
         STM32BL.initial_baudrate = args.baudrate
 
-        # Basic hexfile check
-        if not hexfile.endswith(".hex"):
-            raise RuntimeError(f"only .hex files are supported")
-        if not os.path.isfile(hexfile):
-            raise RuntimeError(f"hexfile '{hexfile}' not found")
-
         bl = STM32BL(hexfile=hexfile, crc32_ceil_bytes=args.crc_range)
         if bl.min_addr != args.address:
             if not proposal_to_continue(

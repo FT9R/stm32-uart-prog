@@ -62,10 +62,10 @@ class STM32BL:
     }
 
     def __init__(self, hexfile: str = "", crc32_ceil_bytes: int = 0):
-        if not hexfile:
-            raise ValueError("hexfile path is required")
-        if not os.path.exists(hexfile):
-            raise FileNotFoundError(f"hexfile not found: {hexfile}")
+        if not os.path.isfile(hexfile):
+            raise RuntimeError(f"hexfile '{hexfile}' not found")
+        if not hexfile.endswith(".hex"):
+            raise RuntimeError(f"only .hex files are supported")
 
         self.ih = IntelHex(hexfile)
         if not self.ih:
