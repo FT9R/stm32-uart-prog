@@ -132,12 +132,13 @@ class Loggers:
 
             try:
                 inf = 1 / 0
-
             except ZeroDivisionError as zde:
                 logger.exception(f"EXCEPTION from {logger.name}: {zde}")
 
 
 entry = sys.modules.get("__main__")
+module = os.path.basename(__file__)
+caller = str()
 
 if entry and hasattr(entry, "__file__") and entry.__file__:
     caller = os.path.basename(entry.__file__)
@@ -149,8 +150,7 @@ else:
 if caller in ("__main__.py", "main.py", "stm32-uart-prog"):
     logger = Loggers.general_log_setup()
     # logger_pow = Loggers.power_log_setup()
-
-elif caller == os.path.basename(__file__):
+elif caller == module:
     Loggers.demo()
 else:
     print(f"{BOLD}{RED}Unexpected entry: {entry}{RESET}")
