@@ -171,7 +171,6 @@ def main():
                 "Provide proper baudrate",
             ):
                 raise InterruptedError
-            f"baudrate {args.baudrate} is not supported, try one of these {STM32BL.BAUDRATES}"
         STM32BL.initial_baudrate = args.baudrate
 
         # Basic hexfile check
@@ -192,26 +191,8 @@ def main():
         total_chunks = chunks_per_target * len(targets)
 
         # Set the connection up
-        ports = SerialPort.get_ports()
-        if not ports:
-            print("No ports found")
-            exit(1)
-        print("Available ports:")
-        for i, (port, desc) in enumerate(ports):
-            print(f"\t[{i}] - {port}: {desc}")
-
-        while True:
-            user_input = input("Which port to use? ").strip()
-            if not user_input.isdigit():
-                print("Invalid input: enter a non-negative integer")
-                continue
-            index = int(user_input)
-            if index >= len(ports):
-                print(f"Invalid selection: enter a number between 0 and {len(ports) - 1}")
-                continue
-            port, desc = ports[index]
-            break
-        sp = SerialPort(port, STM32BL.initial_baudrate, timeout=0.1)  # Open serial port
+        port = SerialPort.pick_port()
+        sp = SerialPort(port, STM32BL.initial_baudrate, serial.PARITY_EVEN, 0.1)
 
         start_time = time.time()
         with tqdm(

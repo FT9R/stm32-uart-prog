@@ -2,6 +2,7 @@ import sys
 import time
 
 import serial.tools.list_ports
+from serial import SerialException
 
 from .loggers import logger
 
@@ -10,7 +11,7 @@ class SerialPort(serial.Serial):
     RECONNECT_INTERVAL = 2
     ports_valid: dict[str, str] = {}
 
-    def __init__(self, port: str, baudrate: int, timeout: float | None = None):
+    def __init__(self, port: str, baudrate: int, parity=serial.PARITY_NONE, timeout: float | None = None):
         self.connected_time = time.perf_counter()
 
         if not SerialPort.ports_valid:
@@ -19,12 +20,12 @@ class SerialPort(serial.Serial):
             port = port.upper()
         if port not in SerialPort.ports_valid.keys():
             logger.error(f"{port}: could not find port")
-            raise serial.SerialException(f"{port}: could not find port")
+            raise SerialException(f"{port}: could not find port")
 
-        super().__init__(port, baudrate, parity=serial.PARITY_EVEN, timeout=timeout, exclusive=True)
+        super().__init__(port, baudrate, 8, parity, 1, timeout, exclusive=True)
         logger.info(f"opened: {self}")
 
-    def reconnect(self, se: serial.SerialException | Exception):
+    def reconnect(self, se: SerialException | Exception):
         if not self.port:
             return  # Prevent reconnecting if was not connected at least once
         if time.perf_counter() - self.connected_time < SerialPort.RECONNECT_INTERVAL:
@@ -36,8 +37,8 @@ class SerialPort(serial.Serial):
         try:
             self.close()
             SerialPort.ports_valid.clear()  # Clear the cached ports
-            self.__init__(self.port, self.baudrate, self.timeout)
-        except serial.SerialException as se:
+            self.__init__(self.port, self.baudrate, self.parity, self.timeout)
+        except SerialException as se:
             logger.exception(f"{se}")
 
     def send_data(self, data: bytes):
@@ -45,13 +46,13 @@ class SerialPort(serial.Serial):
             if getattr(self, "is_open", False):
                 written = self.write(data)
                 if written != len(data):
-                    raise serial.SerialException(f"incomplete write: {written}/{len(data)}")
+                    raise SerialException(f"incomplete write: {written}/{len(data)}")
                 self.flush()
                 time.sleep(0)
                 logger.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
             else:
-                raise serial.SerialException("port is not open during send_data")
-        except serial.SerialException as se:
+                raise SerialException("port is not open during send_data")
+        except SerialException as se:
             self.reconnect(se)
 
     def recv_data(self, size: int = 1, stall_timeout: float = 0):
@@ -73,7 +74,7 @@ class SerialPort(serial.Serial):
             if (stall_timeout * 1000) % 10 != 0:
                 raise ValueError("stall_timeout must be a multiple of 0.01 seconds (10 ms)")
             if not getattr(self, "is_open", False):
-                raise serial.SerialException("port is not open during recv_data")
+                raise SerialException("port is not open during recv_data")
 
             if stall_timeout:
                 start_time = time.perf_counter()
@@ -106,7 +107,7 @@ class SerialPort(serial.Serial):
                 logger.debug(f"length {data_length} does not match requested size {size}: {data.hex(sep=' ').upper()}")
             else:
                 logger.debug("no data received")
-        except serial.SerialException as se:
+        except SerialException as se:
             self.reconnect(se)
         except Exception as e:
             logger.exception(f"common error during data rcv: {e}")
@@ -118,14 +119,14 @@ class SerialPort(serial.Serial):
 
         try:
             if not getattr(self, "is_open", False):
-                raise serial.SerialException("port is not open during recv_all")
+                raise SerialException("port is not open during recv_all")
             data = self.read_all()
             if data:
                 logger.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
             else:
                 logger.debug("no data received")
                 pass
-        except serial.SerialException as se:
+        except SerialException as se:
             self.reconnect(se)
         except Exception as e:
             logger.exception(f"common error during data frame rcv: {e}")
@@ -139,8 +140,8 @@ class SerialPort(serial.Serial):
                     logger.debug(f"discarding input buffer with {self.in_waiting} bytes")
                 self.read_all()
             else:
-                raise serial.SerialException("port is not open during reset_input")
-        except (serial.SerialException, Exception) as se_e:
+                raise SerialException("port is not open during reset_input")
+        except (SerialException, Exception) as se_e:
             self.reconnect(se_e)
 
     @classmethod
@@ -152,15 +153,66 @@ class SerialPort(serial.Serial):
         logger.info(f"Available ports:\n{chr(10).join(f'{k}: {v}' for k, v in cls.ports_valid.items())}")
 
     @classmethod
-    def get_ports(cls):
+    def pick_port(cls):
         dev_name = "COM" if sys.platform.startswith("win") else "/dev/tty"
-        ports_valid: list[tuple[str, str]] = []
+        candidates: list[tuple[str, str]] = []
+        choise = str()
 
         try:
+            # Get all ports
             cls.__scan_ports()
             for port, desc in cls.ports_valid.items():
                 if port.startswith(dev_name):
-                    ports_valid.append((port, desc))
-        except serial.SerialException as e:
+                    candidates.append((port, desc))
+
+            # Filter by name
+            if candidates:
+                print("Available ports:")
+                for i, (port, desc) in enumerate(candidates):
+                    print(f"\t[{i}] - {port}: {desc}")
+            else:
+                print("No ports found")
+
+            # Let the user choose the right one
+            while True:
+                user_input = input("Which port to use? ").strip()
+                if not user_input.isdigit():
+                    print("Invalid input: enter a non-negative integer")
+                    continue
+                index = int(user_input)
+                if index >= len(candidates):
+                    print(f"Invalid selection: enter a number between 0 and {len(candidates) - 1}")
+                    continue
+                choise, desc = candidates[index]
+                break
+        except SerialException as e:
             logger.exception(f"error creating list of ports with name {dev_name} from {cls.ports_valid}: {e}")
-        return ports_valid
+        return choise
+
+
+if __name__ == "__main__":
+    request = "Hello from serial port"
+    response = str()
+
+    try:
+        port = SerialPort.pick_port()
+        sp = SerialPort(port, 115200, timeout=0.1)
+    except SerialException as se:
+        print(se)
+        exit(1)
+
+    if not sp.is_open:
+        print("Could not open serial port")
+        exit(1)
+
+    print("Listening...")
+    time.sleep(1)
+    sp.send_data(request.encode())
+    time.sleep(10)
+    response = sp.recv_all().decode(errors="replace")
+    print(f"Received {len(response)} bytes: {response}" if response else "No data received")
+    sp.close()
+    time.sleep(1)
+
+    if sp.is_open:
+        print("Could not close serial port")
