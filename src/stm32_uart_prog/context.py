@@ -63,7 +63,7 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
 
         # Frame without CRC
         frame = struct.pack(
-            "<BBHBBBBB",  # < = little-endian, B = uint8_t, H = uint16_t
+            "<BBHBBBB",  # < = little-endian, B = uint8_t, H = uint16_t
             0xAA,  # Preamble
             1,  # Frame length // 10
             dev_id,  # Device ID (uint16)
@@ -117,7 +117,7 @@ def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
 
         # Frame without CRC
         frame = struct.pack(
-            "<BBHBBBBB",  # < = little-endian, B = uint8_t, H = uint16_t
+            "<BBHBBBB",  # < = little-endian, B = uint8_t, H = uint16_t
             0xAA,  # Preamble
             1,  # Frame length // 10
             dev_id,  # Device ID (uint16)
