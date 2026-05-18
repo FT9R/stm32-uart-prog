@@ -151,6 +151,7 @@ def main():
     start_time = 0.0
     args = args_get()
     Loggers.set_level(logger, args.loglvl)
+    logger.info(f"args: {args}")
     hexfile = os.path.abspath(args.hexfile)
     targets = tuple(args.targets)
     prog_status = {id: "Undefined" for id in targets}
@@ -230,6 +231,15 @@ def main():
                         raise RuntimeError(f"required bootloader commands not supported: {bl.COMMAND_REQUIRED.difference(sup_commands)}")
                     logger.info(f"target {target_id}, supported commands: {sup_commands}")
                     time.sleep(0.1)
+
+                    # Pre-erase sectors if requested
+                    for sector in tqdm(args.erase, desc="Sector pre-erase", leave=False):
+                        for erase_attempt in range(bl.attempts_erase):
+                            if bl.erase_sector(sector):
+                                break
+                            else:
+                                logger.warning(f"sector {sector}: pre-erase attempt {erase_attempt + 1} failed")
+                                total_bar.write(f"\tRetry sector {sector}, pre-erase attempt {erase_attempt + 1}/{bl.attempts_erase}")
 
                     # Program the target
                     prog_status[target_id] = program_hex(bl, target_id, total_bar)
