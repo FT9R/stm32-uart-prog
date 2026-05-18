@@ -91,9 +91,7 @@ class SerialPort(serial.Serial):
                         else:
                             logger.error("bytes available in buffer but could not read any data")
                     elif time.perf_counter() - start_time > stall_timeout:
-                        logger.warning(
-                            f"stall timeout after waiting for {size} bytes, got {len(data)} bytes {data.hex(sep=' ').upper()}"
-                        )
+                        logger.warning(f"stall timeout after waiting for {size} bytes, got {len(data)} bytes {data.hex(sep=' ').upper()}")
                         return bytes(data)
                     else:
                         time.sleep(1e-2)

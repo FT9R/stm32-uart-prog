@@ -85,9 +85,7 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                 for attempt in range(bl.attempts_cmd):
                     if bl.write_mem(chunk_start, chunk):
                         break
-                    logger.warning(
-                        f"sector {sector}: write failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}"
-                    )
+                    logger.warning(f"sector {sector}: write failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}")
                     if not bl.probe_bootloader():
                         bl.ser.send_data(bl.ACTIVATE.to_bytes())
                         bl._read_ack()
@@ -104,9 +102,7 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                         total_bar.update(1)
                         credited += 1
                         break
-                    logger.warning(
-                        f"sector {sector}: verify failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}"
-                    )
+                    logger.warning(f"sector {sector}: verify failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}")
                     time.sleep(0.1)
                 else:
                     logger.warning(f"sector {sector}: verify failed at 0x{chunk_start:08X}")
@@ -122,9 +118,7 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                 # Rollback total progress from this failed attempt
                 total_bar.update(-credited)
                 logger.error(f"sector {sector}: attempt {erase_attempt + 1} failed")
-                total_bar.write(
-                    f"\t{YELLOW}Retry sector {sector}, attempt {erase_attempt + 1}/{bl.attempts_erase}{RESET}"
-                )
+                total_bar.write(f"\t{YELLOW}Retry sector {sector}, attempt {erase_attempt + 1}/{bl.attempts_erase}{RESET}")
         else:
             logger.error(f"sector {sector}: failed permanently after {bl.attempts_erase} erase attempts")
             return "Fail"
@@ -189,9 +183,7 @@ def main():
         sp = SerialPort(port, STM32BL.initial_baudrate, serial.PARITY_EVEN, 0.1)
 
         start_time = time.time()
-        with tqdm(
-            desc="Tot", total=total_chunks, leave=False, unit="chunk", dynamic_ncols=True, smoothing=0.8, position=1
-        ) as total_bar:
+        with tqdm(desc="Tot", total=total_chunks, leave=False, unit="chunk", dynamic_ncols=True, smoothing=0.8, position=1) as total_bar:
             for target_id in targets:
                 time.sleep(0.5)
                 try:
@@ -235,9 +227,7 @@ def main():
                     # Check supported commands
                     sup_commands = bl.get_commands()
                     if not bl.COMMAND_REQUIRED.issubset(sup_commands):
-                        raise RuntimeError(
-                            f"required bootloader commands not supported: {bl.COMMAND_REQUIRED.difference(sup_commands)}"
-                        )
+                        raise RuntimeError(f"required bootloader commands not supported: {bl.COMMAND_REQUIRED.difference(sup_commands)}")
                     logger.info(f"target {target_id}, supported commands: {sup_commands}")
                     time.sleep(0.1)
 

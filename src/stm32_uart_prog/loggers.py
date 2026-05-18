@@ -31,9 +31,7 @@ class Loggers:
     levels = logging._levelToName.values()
 
     def __init__(self):
-        raise NotImplementedError(
-            f"{self.__class__} is abstract and cannot be instantiated. Use class methods directly."
-        )
+        raise NotImplementedError(f"{self.__class__} is abstract and cannot be instantiated. Use class methods directly.")
 
     @classmethod
     def general_log_setup(cls):
@@ -44,9 +42,7 @@ class Loggers:
         INFO_LOG_PATH = os.path.join(log_dir, "info.log")
         DEBUG_LOG_PATH = os.path.join(log_dir, "debug.log")
 
-        formatter = logging.Formatter(
-            "%(asctime)s.%(msecs)03d - %(filename)s:%(funcName)s:%(lineno)d - %(message)s", datefmt="%d-%m-%Y %H:%M:%S"
-        )
+        formatter = logging.Formatter("%(asctime)s.%(msecs)03d - %(filename)s:%(funcName)s:%(lineno)d - %(message)s", datefmt="%d-%m-%Y %H:%M:%S")
 
         logger = logging.getLogger("general_logger")
         logger.setLevel(logging.DEBUG)
@@ -54,27 +50,19 @@ class Loggers:
 
         logger.handlers.clear()
 
-        error_handler = RotatingFileHandler(
-            filename=ERROR_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8"
-        )
+        error_handler = RotatingFileHandler(filename=ERROR_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8")
         error_handler.setFormatter(formatter)
         error_handler.addFilter(LevelFilter(logging.ERROR))
 
-        warning_handler = RotatingFileHandler(
-            filename=WARNING_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8"
-        )
+        warning_handler = RotatingFileHandler(filename=WARNING_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8")
         warning_handler.setFormatter(formatter)
         warning_handler.addFilter(LevelFilter(logging.WARNING))
 
-        info_handler = RotatingFileHandler(
-            filename=INFO_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8"
-        )
+        info_handler = RotatingFileHandler(filename=INFO_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8")
         info_handler.setFormatter(formatter)
         info_handler.addFilter(LevelFilter(logging.INFO))
 
-        debug_handler = RotatingFileHandler(
-            filename=DEBUG_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8"
-        )
+        debug_handler = RotatingFileHandler(filename=DEBUG_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8")
         debug_handler.setFormatter(formatter)
         debug_handler.addFilter(LevelFilter(logging.DEBUG))
 
@@ -99,9 +87,7 @@ class Loggers:
         logger.propagate = False
 
         logger.handlers.clear()
-        handler = AutoFlushRotatingFileHandler(
-            filename=POWER_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8"
-        )
+        handler = AutoFlushRotatingFileHandler(filename=POWER_LOG_PATH, maxBytes=10 * 1024 * 1024, backupCount=2, encoding="utf-8")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         return logger

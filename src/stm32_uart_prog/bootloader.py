@@ -199,21 +199,13 @@ class STM32BL:
             {
                 int(self.initial_baudrate * (1 + i * step))
                 for i in range(-steps, steps + 1)
-                if int(self.initial_baudrate * (1 + i * step)) > 0
-                and int(self.initial_baudrate * (1 + i * step)) != self.initial_baudrate
+                if int(self.initial_baudrate * (1 + i * step)) > 0 and int(self.initial_baudrate * (1 + i * step)) != self.initial_baudrate
             }
         )
         other_bases = [b for b in self.BAUDRATES if b > 0 and b != self.initial_baudrate]
         baud_candidates += [
             b
-            for b in sorted(
-                {
-                    int(base * (1 + i * step))
-                    for base in other_bases
-                    for i in range(-steps, steps + 1)
-                    if int(base * (1 + i * step)) > 0
-                }
-            )
+            for b in sorted({int(base * (1 + i * step)) for base in other_bases for i in range(-steps, steps + 1) if int(base * (1 + i * step)) > 0})
             if b not in baud_candidates
         ]
 
@@ -246,9 +238,7 @@ class STM32BL:
         self.baudrate = self.ser.baudrate = best_baud
         total_bar.write(f"Sync at baudrate {best_baud} ({best_rate:.1%})")
         if not math.isclose(best_baud, self.initial_baudrate, rel_tol=0.01):
-            total_bar.write(
-                f"{YELLOW}Baudrate after sync differs from initial: {best_baud}/{self.initial_baudrate}{RESET}"
-            )
+            total_bar.write(f"{YELLOW}Baudrate after sync differs from initial: {best_baud}/{self.initial_baudrate}{RESET}")
         return True
 
     def baud_tune(self, total_bar: tqdm, tune_requests=500, success_threshold=0.7):
@@ -443,9 +433,7 @@ class STM32BL:
 
         try:
             if not self.ser or not self.ser.is_open:
-                raise serial.SerialException(
-                    f"target ID{self.__target_id}: serial port not open during probe_bootloader"
-                )
+                raise serial.SerialException(f"target ID{self.__target_id}: serial port not open during probe_bootloader")
 
             while time.monotonic() < end:
                 self.ser.send_data(b"\xff")
