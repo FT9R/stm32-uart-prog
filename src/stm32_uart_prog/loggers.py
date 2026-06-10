@@ -104,7 +104,7 @@ class Loggers:
             raise ValueError(f"wrong level `{loggerLevel}` for current logger")
 
         logger.setLevel(loggerLevel)
-        print(f"Logging level is set to: {loggerLevel}")
+        # print(f"Logging level is set to: {loggerLevel}")
 
     @staticmethod
     def demo():
@@ -128,7 +128,7 @@ caller = str()
 
 if entry and hasattr(entry, "__file__") and entry.__file__:
     caller = os.path.basename(entry.__file__)
-    print(f"Logging system is used by: {caller}")
+    # print(f"Logging system is used by: {caller}")
 else:
     print(f"{BOLD}{RED}Could not check for app entry{RESET}")
     sys.exit()

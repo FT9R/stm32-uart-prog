@@ -84,7 +84,8 @@ stm32-uart-prog --help
 
 ## Usage
 ```sh
-stm32-uart-prog --hexfile firmware.hex --targets 1-2
+stm32-uart-prog prog firmware.hex --targets 1-2
+stm32-uart-prog stat firmware.hex
 ```
 
 ## TODO

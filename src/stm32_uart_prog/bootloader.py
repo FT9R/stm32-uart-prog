@@ -62,72 +62,92 @@ class STM32BL:
     }
     COMMAND_REQUIRED = {f"0x{b:02X}" for b in COMMAND_SET.values()}
 
-    def __init__(self, hexfile: str = "", crc32_ceil_bytes: int = 0):
+    def __init__(self, hexfile: str = "", flash_size: int = 0, crc_range: dict[str, int] = {}):
         if not os.path.isfile(hexfile):
             raise RuntimeError(f"hexfile '{hexfile}' not found")
         if not hexfile.endswith(".hex"):
             raise RuntimeError(f"only .hex files are supported")
 
         self.ih = IntelHex(hexfile)
-        if not self.ih:
-            raise AttributeError("could not parse hexfile")
         self.ih.padding = 0xFF
         self.data = self.ih.tobinarray()
         self.data_len = len(self.data)
+
         if self.data_len == 0:
             raise ValueError(f"hexfile is empty or invalid: {hexfile}")
-        addresses = list(self.ih.addresses())
-        if not addresses:
-            raise ValueError("hexfile contains no data")
-        self.min_addr: int = min(addresses)
-        self.max_addr: int = max(addresses)
-        self.used_sectors = sorted({s for addr in addresses if (s := self.__sector_for_address(addr)) is not None})
+
+        self.min_addr: int = self.ih.minaddr() or 0
+        self.max_addr: int = self.ih.maxaddr() or 0
+        if not self.min_addr or not self.max_addr or self.data_len == 0:
+            raise ValueError("hexfile contains no addressable data")
+
+        self.used_sectors = sorted(
+            {s for addr in range(self.min_addr, self.max_addr + 1, self.CHUNK) if (s := self.__sector_for_address(addr)) is not None}
+        )
         if not self.used_sectors:
             raise ValueError("hexfile doesn't map to any flash sectors")
         if self.max_addr > self.FLASH_SECTORS[-1][0] + self.FLASH_SECTORS[-1][1] - 1:
             raise RuntimeError("hexfile content is out of target's ROM boundaries")
 
-        # Calculate CRC32 STM32-style
-        self.crc32 = self.__stm32_crc32(crc32_ceil_bytes // 4)
+        # CRC range resolution
+        if not crc_range:
+            crc_range = {}
+        req_start = crc_range.get("start", 0)
+        req_end = crc_range.get("end", 0)
+        calc_start = req_start if req_start else self.min_addr
+        calc_end = req_end if req_end else (self.max_addr + 1)
+        calc_start = calc_start & ~3
+        calc_end = (calc_end + 3) & ~3
+        expected_bytes = calc_end - calc_start
 
-        print(
-            f"Firmware {MAGENTA}{hexfile}{RESET} ({BLUE}{self.data_len}{RESET} bytes) parsed and occupies sectors {BLUE}{self.used_sectors[0]}-{self.used_sectors[-1]}{RESET}"
-        )
-        print(f"CRC32 (STM32): {BLUE}0x{self.crc32:08X}{RESET}")
+        start_idx = max(0, min(calc_start - self.min_addr, self.data_len))
+        end_idx = max(0, min(calc_end - self.min_addr, self.data_len))
+        sub_data = self.data[start_idx:end_idx]
+
+        if len(sub_data) < expected_bytes:
+            if len(sub_data) == 0:
+                sub_data = array.array("B", b"\xff" * expected_bytes)
+            else:
+                if calc_start < self.min_addr:
+                    front = self.min_addr - calc_start
+                    sub_data = array.array("B", b"\xff" * front) + sub_data
+                if len(sub_data) < expected_bytes:
+                    sub_data = sub_data + array.array("B", b"\xff" * (expected_bytes - len(sub_data)))
+
+        self.crc32 = self.__stm32_crc32(sub_data)
+
+        # Print
+        eip = self.ih.start_addr.get("EIP", 0) if self.ih.start_addr else 0
+        usage = f"{self.data_len / flash_size * 100:.2f}%" if flash_size else "n/a"
+        print(f"Firmware    : {MAGENTA}{hexfile}{RESET}")
+        print(f"EIP         : {CYAN}0x{eip:08X}{RESET}")
+        print(f"Start       : {CYAN}0x{self.min_addr:08X}{RESET}")
+        print(f"End         : {CYAN}0x{self.max_addr:08X}{RESET}")
+        print(f"Flash used  : {CYAN}{usage}{RESET} - {CYAN}{self.data_len}{RESET} bytes ({self.data_len / 1024:.2f} KB)")
+        print(f"CRC Range   : {CYAN}0x{calc_start:08X} - 0x{calc_end:08X}{RESET} ({expected_bytes // 4} words)")
+        print(f"CRC32       : {CYAN}0x{self.crc32:08X}{RESET}")
+
         logger.info(f"firmware: {hexfile} ({self.data_len} bytes)")
         logger.info(f"used sectors: {self.used_sectors}")
         logger.info(f"CRC32: 0x{self.crc32:08X}")
 
-    def __stm32_crc32(self, length_words: int = 0) -> int:
-        """
-        Calculate CRC32 matching STM32 hardware CRC unit.
-        """
-
+    def __stm32_crc32(self, data, timeout: float = 30.0) -> int:
+        """Calculates the standard STM32 hardware CRC32 over 32-bit words."""
         POLY = 0x04C11DB7
         crc = 0xFFFFFFFF
 
-        # Convert data to bytes
-        if isinstance(self.data, array.array):
-            data_bytes = self.data.tobytes()
+        if isinstance(data, array.array):
+            data_len = data.tobytes()
         else:
-            data_bytes = bytes(self.data)
+            data_len = bytes(data)
+        if len(data_len) % 4 != 0:
+            raise ValueError("CRC data payload must be 32-bit word aligned.")
 
-        # Determine CRC range
-        if length_words:
-            # Extend to specified length
-            target_len = length_words * 4
-            if len(data_bytes) >= target_len:
-                padded_data = data_bytes[:target_len]
-            else:
-                padded_data = data_bytes + b"\xff" * (target_len - len(data_bytes))
-        else:
-            # Pad to word boundary
-            padding = (4 - len(data_bytes) % 4) % 4
-            padded_data = data_bytes + b"\xff" * padding
-
-        # Process 32-bit words
-        for i in range(0, len(padded_data), 4):
-            word = int.from_bytes(padded_data[i : i + 4], "little")
+        deadline = time.monotonic() + timeout
+        for i in range(0, len(data_len), 4):
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"CRC32 calculation timed out after {timeout}s ({i} of {len(data_len)} bytes processed)\nWrong CRC range?")
+            word = int.from_bytes(data_len[i : i + 4], "little")
             crc ^= word
             for _ in range(32):
                 if crc & 0x80000000:

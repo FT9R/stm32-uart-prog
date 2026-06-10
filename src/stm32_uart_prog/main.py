@@ -153,22 +153,15 @@ def main():
     Loggers.set_level(logger, args.loglvl)
     logger.info(f"args: {args}")
     hexfile = os.path.abspath(args.hexfile)
-    targets = tuple(args.targets)
+    targets = tuple(getattr(args, "targets", ()) or ())
     prog_status = {id: "Undefined" for id in targets}
-    STM32BL.attempts_erase = args.attempts_erase
-    STM32BL.attempts_cmd = args.attempts
+    STM32BL.attempts_erase = getattr(args, "attempts_erase", 1) or 1
+    STM32BL.attempts_cmd = getattr(args, "attempts", 1) or 1
 
     try:
-        # Baudrate check
-        if args.baudrate not in STM32BL.BAUDRATES:
-            if not proposal_to_continue(
-                f"{YELLOW}Baudrate {args.baudrate} does not fit into {STM32BL.BAUDRATES}\nContinue? (yes/no){RESET}",
-                "Provide proper baudrate",
-            ):
-                raise InterruptedError
-        STM32BL.initial_baudrate = args.baudrate
-
-        bl = STM32BL(hexfile=hexfile, crc32_ceil_bytes=args.crc_range)
+        bl = STM32BL(hexfile, args.flash_size, args.crc_range)
+        if args.command == "stat":
+            return
         if bl.min_addr != args.address:
             if not proposal_to_continue(
                 f"{YELLOW}Non-default application start address detected: from hexfile - {hex(bl.min_addr)}, from args - {hex(args.address)}.\nContinue? (yes/no){RESET}",
@@ -178,6 +171,15 @@ def main():
         bl.start_address = args.address
         chunks_per_target = sum(bl.FLASH_SECTORS[s][1] // bl.CHUNK for s in bl.used_sectors)
         total_chunks = chunks_per_target * len(targets)
+
+        # Baudrate check
+        if args.baudrate not in STM32BL.BAUDRATES:
+            if not proposal_to_continue(
+                f"{YELLOW}Baudrate {args.baudrate} does not fit into {STM32BL.BAUDRATES}\nContinue? (yes/no){RESET}",
+                "Provide proper baudrate",
+            ):
+                raise InterruptedError
+        STM32BL.initial_baudrate = args.baudrate
 
         # Set the connection up
         port = SerialPort.pick_port()
@@ -268,6 +270,9 @@ def main():
     except RuntimeError as re:
         print(f"{RED}Runtime error: {re}{RESET}")
         logger.exception(f"{re}")
+    except TimeoutError as te:
+        print(f"{RED}Operation timed out: {te}{RESET}")
+        logger.exception(f"{te}")
     except Exception as e:
         print(f"{RED}An unhandled exception has occurred: {e}{RESET}")
         logger.exception(f"{e}")
