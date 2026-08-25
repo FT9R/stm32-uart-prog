@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from tqdm import tqdm
 
-from .arg_parser import args_get
+from .arg_parser import args
 from .bootloader import *
 from .context import be_quiet, enter_bootloader
 
@@ -66,7 +66,7 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
             bl.ser.reset_output_buffer()
             if not bl.erase_sector(sector):
                 warn_detected = True
-                logger.warning(f"sector {sector}: erase attempt {erase_attempt + 1} failed")
+                log.warning(f"sector {sector}: erase attempt {erase_attempt + 1} failed")
                 total_bar.write(f"\tRetry sector {sector}, erase attempt {erase_attempt + 1}/{bl.attempts_erase}")
                 continue
 
@@ -85,7 +85,7 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                 for attempt in range(bl.attempts_cmd):
                     if bl.write_mem(chunk_start, chunk):
                         break
-                    logger.warning(f"sector {sector}: write failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}")
+                    log.warning(f"sector {sector}: write failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}")
                     if not bl.probe_bootloader():
                         bl.ser.send_data(bl.ACTIVATE.to_bytes())
                         bl._read_ack()
@@ -102,10 +102,10 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
                         total_bar.update(1)
                         credited += 1
                         break
-                    logger.warning(f"sector {sector}: verify failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}")
+                    log.warning(f"sector {sector}: verify failed ({attempt + 1}/{bl.attempts_cmd}) at 0x{chunk_start:08X}")
                     time.sleep(0.1)
                 else:
-                    logger.warning(f"sector {sector}: verify failed at 0x{chunk_start:08X}")
+                    log.warning(f"sector {sector}: verify failed at 0x{chunk_start:08X}")
                     total_bar.write(f"\t{YELLOW}Sector {sector}: verify failed at 0x{chunk_start:08X}{RESET}")
                     warn_detected = True
                     all_ok = False
@@ -117,20 +117,20 @@ def program_hex(bl: STM32BL, target_id: int, total_bar: tqdm):
             else:
                 # Rollback total progress from this failed attempt
                 total_bar.update(-credited)
-                logger.error(f"sector {sector}: attempt {erase_attempt + 1} failed")
+                log.error(f"sector {sector}: attempt {erase_attempt + 1} failed")
                 total_bar.write(f"\t{YELLOW}Retry sector {sector}, attempt {erase_attempt + 1}/{bl.attempts_erase}{RESET}")
         else:
-            logger.error(f"sector {sector}: failed permanently after {bl.attempts_erase} erase attempts")
+            log.error(f"sector {sector}: failed permanently after {bl.attempts_erase} erase attempts")
             return "Fail"
 
     # Start application
     for attempt in range(bl.attempts_cmd):
         if bl.start_application(bl.start_address):
-            logger.info(f"target {target_id}: application started at 0x{bl.start_address:08X}")
+            log.info(f"target {target_id}: application started at 0x{bl.start_address:08X}")
             break
         time.sleep(0.5)
     else:
-        logger.error(f"target {target_id}: failed to start application")
+        log.error(f"target {target_id}: failed to start application")
         return "Fail"
 
     return "Success" if not warn_detected else "Warning"
@@ -143,15 +143,13 @@ def retry(fn, *, attempts=20, delay=0.5):
         except Exception as e:
             if i == attempts - 1:
                 raise
-            logger.warning(f"Attempt {i+1} failed: {e}")
+            log.warning(f"Attempt {i+1} failed: {e}")
             time.sleep(delay)
 
 
 def main():
     start_time = 0.0
-    args = args_get()
-    Loggers.set_level(logger, args.loglvl)
-    logger.info(f"args: {args}")
+    log.info(f"args: {args}")
     hexfile = os.path.abspath(args.hexfile)
     targets = tuple(getattr(args, "targets", ()) or ())
     prog_status = {id: "Undefined" for id in targets}
@@ -231,7 +229,7 @@ def main():
                     sup_commands = bl.get_commands()
                     if not bl.COMMAND_REQUIRED.issubset(sup_commands):
                         raise RuntimeError(f"required bootloader commands not supported: {bl.COMMAND_REQUIRED.difference(sup_commands)}")
-                    logger.info(f"target {target_id}, supported commands: {sup_commands}")
+                    log.info(f"target {target_id}, supported commands: {sup_commands}")
                     time.sleep(0.1)
 
                     # Pre-erase sectors if requested
@@ -240,7 +238,7 @@ def main():
                             if bl.erase_sector(sector):
                                 break
                             else:
-                                logger.warning(f"sector {sector}: pre-erase attempt {erase_attempt + 1} failed")
+                                log.warning(f"sector {sector}: pre-erase attempt {erase_attempt + 1} failed")
                                 total_bar.write(f"\tRetry sector {sector}, pre-erase attempt {erase_attempt + 1}/{bl.attempts_erase}")
 
                     # Program the target
@@ -258,24 +256,24 @@ def main():
                     bl.failed_once = True
                     total_bar.write(f"{RED}Programming failed ({e}){RESET}")
                     prog_status[target_id] = "Fail"
-                    logger.exception(f"target ID{target_id}: error during programming - {e}")
+                    log.exception(f"target ID{target_id}: error during programming - {e}")
     except (KeyboardInterrupt, InterruptedError):
         print(f"\n{YELLOW}Operation cancelled by user{RESET}")
     except serial.SerialException as se:
         print(f"{RED}Could not open serial port: {se}{RESET}")
-        logger.exception(f"{se}")
+        log.exception(f"{se}")
     except IntelHexError as ihe:
         print(f"{RED}Error while parsing hexfile: {ihe}{RESET}")
-        logger.exception(f"{ihe}")
+        log.exception(f"{ihe}")
     except RuntimeError as re:
         print(f"{RED}Runtime error: {re}{RESET}")
-        logger.exception(f"{re}")
+        log.exception(f"{re}")
     except TimeoutError as te:
         print(f"{RED}Operation timed out: {te}{RESET}")
-        logger.exception(f"{te}")
+        log.exception(f"{te}")
     except Exception as e:
         print(f"{RED}An unhandled exception has occurred: {e}{RESET}")
-        logger.exception(f"{e}")
+        log.exception(f"{e}")
     finally:
         if start_time:
             print("\nProgramming summary:")
@@ -284,8 +282,8 @@ def main():
                 print(f"\tDevice ID {BLUE}{id}{RESET}: {color}{status.lower()}{RESET}")
             duration_str = format_duration(time.time() - start_time) if start_time else "N/A"
             print(f"\tProcess duration: {duration_str}")
-            logger.info("programming session ended, time taken: " + duration_str)
-            logger.info(f"final statuses: {prog_status}")
+            log.info("programming session ended, time taken: " + duration_str)
+            log.info(f"final statuses: {prog_status}")
 
 
 if __name__ == "__main__":

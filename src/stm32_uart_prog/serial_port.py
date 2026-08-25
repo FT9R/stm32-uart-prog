@@ -4,7 +4,7 @@ import time
 import serial.tools.list_ports
 from serial import SerialException
 
-from .loggers import logger
+from .loggers import log
 
 
 class SerialPort(serial.Serial):
@@ -13,17 +13,18 @@ class SerialPort(serial.Serial):
 
     def __init__(self, port: str, baudrate: int, parity=serial.PARITY_NONE, timeout: float | None = None):
         self.connected_time = time.perf_counter()
+        self.log = log.with_context(port or "no ctx")
 
         if not SerialPort.ports_valid:
             SerialPort.__scan_ports()
         if sys.platform.startswith("win"):
             port = port.upper()
         if port not in SerialPort.ports_valid.keys():
-            logger.error(f"{port}: could not find port")
+            self.log.error(f"{port}: could not find port")
             raise SerialException(f"{port}: could not find port")
 
         super().__init__(port, baudrate, 8, parity, 1, timeout, exclusive=True)
-        logger.info(f"opened: {self}")
+        self.log.info(f"opened: {self}")
 
     def reconnect(self, se: SerialException | Exception):
         if not self.port:
@@ -33,13 +34,13 @@ class SerialPort(serial.Serial):
             return  # Prevent rapid reconnect attempts
 
         time.sleep(0.5)
-        logger.error(f"{getattr(self, 'port', 'PORT:')}: {se}")
+        self.log.error(f"{getattr(self, 'port', 'PORT:')}: {se}")
         try:
             self.close()
             SerialPort.ports_valid.clear()  # Clear the cached ports
             self.__init__(self.port, self.baudrate, self.parity, self.timeout)
         except SerialException as se:
-            logger.exception(f"{se}")
+            self.log.exception(f"{se}")
 
     def send_data(self, data: bytes):
         try:
@@ -49,7 +50,7 @@ class SerialPort(serial.Serial):
                     raise SerialException(f"incomplete write: {written}/{len(data)}")
                 self.flush()
                 time.sleep(0)
-                logger.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
+                self.log.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
             else:
                 raise SerialException("port is not open during send_data")
         except SerialException as se:
@@ -82,16 +83,16 @@ class SerialPort(serial.Serial):
                     available = self.in_waiting
                     if available:
                         if available > size - len(data):
-                            logger.warning(f"available bytes {available} exceed remaining {size - len(data)}")
+                            self.log.warning(f"available bytes {available} exceed remaining {size - len(data)}")
                             available = size - len(data)
                         chunk = self.read(available)
                         if chunk:
                             data.extend(chunk)
                             start_time = time.perf_counter()
                         else:
-                            logger.error("bytes available in buffer but could not read any data")
+                            self.log.error("bytes available in buffer but could not read any data")
                     elif time.perf_counter() - start_time > stall_timeout:
-                        logger.warning(f"stall timeout after waiting for {size} bytes, got {len(data)} bytes {data.hex(sep=' ').upper()}")
+                        self.log.warning(f"stall timeout after waiting for {size} bytes, got {len(data)} bytes {data.hex(sep=' ').upper()}")
                         return bytes(data)
                     else:
                         time.sleep(1e-2)
@@ -100,15 +101,15 @@ class SerialPort(serial.Serial):
 
             data_length = len(data)
             if data_length == size:
-                logger.debug(f"{data_length} bytes: {data.hex(sep=' ').upper()}")
+                self.log.debug(f"{data_length} bytes: {data.hex(sep=' ').upper()}")
             elif data_length != 0:
-                logger.debug(f"length {data_length} does not match requested size {size}: {data.hex(sep=' ').upper()}")
+                self.log.debug(f"length {data_length} does not match requested size {size}: {data.hex(sep=' ').upper()}")
             else:
-                logger.debug("no data received")
+                self.log.debug("no data received")
         except SerialException as se:
             self.reconnect(se)
         except Exception as e:
-            logger.exception(f"common error during data rcv: {e}")
+            self.log.exception(f"common error during data rcv: {e}")
         finally:
             return bytes(data)
 
@@ -120,14 +121,14 @@ class SerialPort(serial.Serial):
                 raise SerialException("port is not open during recv_all")
             data = self.read_all()
             if data:
-                logger.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
+                self.log.debug(f"{len(data)} bytes: {data.hex(sep=' ').upper()}")
             else:
-                logger.debug("no data received")
+                self.log.debug("no data received")
                 pass
         except SerialException as se:
             self.reconnect(se)
         except Exception as e:
-            logger.exception(f"common error during data frame rcv: {e}")
+            self.log.exception(f"common error during data frame rcv: {e}")
         finally:
             return bytes() if data is None else data
 
@@ -135,7 +136,7 @@ class SerialPort(serial.Serial):
         try:
             if getattr(self, "is_open", False):
                 if self.in_waiting:
-                    logger.debug(f"discarding input buffer with {self.in_waiting} bytes")
+                    self.log.debug(f"discarding input buffer with {self.in_waiting} bytes")
                 self.read_all()
             else:
                 raise SerialException("port is not open during reset_input")
@@ -148,7 +149,7 @@ class SerialPort(serial.Serial):
         for i, (port, desc, hwid) in enumerate(ports):
             dev = ports[i]
             cls.ports_valid[port] = f"{desc}, manufacturer: {dev.manufacturer}, location: {dev.location}"
-        logger.info(f"Available ports:\n{chr(10).join(f'{k}: {v}' for k, v in cls.ports_valid.items())}")
+        log.info(f"Available ports:\n{chr(10).join(f'{k}: {v}' for k, v in cls.ports_valid.items())}")
 
     @classmethod
     def pick_port(cls):
@@ -184,7 +185,7 @@ class SerialPort(serial.Serial):
                 choise, desc = candidates[index]
                 break
         except SerialException as e:
-            logger.exception(f"error creating list of ports with name {dev_name} from {cls.ports_valid}: {e}")
+            log.exception(f"error creating list of ports with name {dev_name} from {cls.ports_valid}: {e}")
         return choise
 
 

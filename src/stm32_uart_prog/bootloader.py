@@ -8,7 +8,7 @@ from intelhex import IntelHex, IntelHexError
 from tqdm import tqdm
 
 from .colors import *
-from .loggers import Loggers, logger
+from .loggers import log
 from .serial_port import SerialPort, serial
 
 
@@ -127,9 +127,9 @@ class STM32BL:
         print(f"CRC Range   : {CYAN}0x{calc_start:08X} - 0x{calc_end:08X}{RESET} ({expected_bytes // 4} words)")
         print(f"CRC32       : {CYAN}0x{self.crc32:08X}{RESET}")
 
-        logger.info(f"firmware: {hexfile} ({self.data_len} bytes)")
-        logger.info(f"used sectors: {self.used_sectors}")
-        logger.info(f"CRC32: 0x{self.crc32:08X}")
+        log.info(f"firmware: {hexfile} ({self.data_len} bytes)")
+        log.info(f"used sectors: {self.used_sectors}")
+        log.info(f"CRC32: 0x{self.crc32:08X}")
 
     def __stm32_crc32(self, data, timeout: float = 30.0) -> int:
         """Calculates the standard STM32 hardware CRC32 over 32-bit words."""
@@ -235,7 +235,7 @@ class STM32BL:
             with tqdm(total=tune_requests, desc=f"Sync baud {baud}", leave=False) as bar:
                 rate = sync_rate(baud, bar)
 
-            logger.debug(f"target ID{self.__target_id}: baud={baud}, success_rate={rate:.2f}")
+            log.debug(f"target ID{self.__target_id}: baud={baud}, success_rate={rate:.2f}")
             if rate > best_rate:
                 best_rate = rate
                 best_baud = baud
@@ -297,7 +297,7 @@ class STM32BL:
                 try:
                     self.baudrate = self.ser.baudrate = baud
                 except Exception as e:
-                    logger.warning(f"failed to set baudrate {baud}: {e}")
+                    log.warning(f"failed to set baudrate {baud}: {e}")
                     continue
 
                 response_count = 0
@@ -327,7 +327,7 @@ class STM32BL:
 
             if best_baud:
                 self.baudrate = self.ser.baudrate = best_baud
-                logger.warning(f"no 100% baud found, using {best_baud} ({best_rate:.1%} success)")
+                log.warning(f"no 100% baud found, using {best_baud} ({best_rate:.1%} success)")
                 return best_baud
 
             raise RuntimeError("baudrate autodetection failed")
@@ -416,7 +416,7 @@ class STM32BL:
         payload += sector.to_bytes(2, "big")  # Sector number
 
         chk = self.__checksum(payload)
-        self.ser.send_data(payload + bytes([chk]))
+        self.ser.send_data(bytes(payload + bytes([chk])))
 
         return self._read_ack(self.SECTOR_ERASE_TIME_MAX)
 
@@ -434,9 +434,9 @@ class STM32BL:
             if self._read_ack():
                 return True
             else:
-                logger.warning(f"target ID{self.__target_id}: command {hex(cmd)} failed ({attempt + 1}/3) ")
+                log.warning(f"target ID{self.__target_id}: command {hex(cmd)} failed ({attempt + 1}/3) ")
                 continue
-        logger.error(f"target ID{self.__target_id}: command {hex(cmd)} NACK")
+        log.error(f"target ID{self.__target_id}: command {hex(cmd)} NACK")
         return False
 
     def probe_bootloader(self, timeout=5.0, interval=0.005, verbose=True):
@@ -449,7 +449,7 @@ class STM32BL:
         """
         end = time.monotonic() + timeout
         if verbose:
-            logger.warning(f"target ID{self.__target_id}: resync requested")
+            log.warning(f"target ID{self.__target_id}: resync requested")
 
         try:
             if not self.ser or not self.ser.is_open:
@@ -463,7 +463,7 @@ class STM32BL:
                     return True
             return False
         except serial.SerialException as se:
-            logger.exception(se)
+            log.exception(se)
             self.ser.reconnect(se)
             return False
 

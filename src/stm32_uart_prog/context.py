@@ -3,7 +3,7 @@
 import struct
 import time
 
-from .loggers import Loggers, logger
+from .loggers import log
 from .serial_port import SerialPort, serial
 
 
@@ -51,7 +51,7 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
 
     try:
         time.sleep(7)  # Wait while previous device enters main app
-        logger.info("sending mute command")
+        log.info("sending mute command")
 
         # Cache original settings
         orig_baudrate = sp.baudrate
@@ -78,7 +78,7 @@ def be_quiet(sp: SerialPort, bl_baudrate: int):
             sp.send_data(frame)
             time.sleep(0.5)
     except Exception as e:
-        logger.exception(f"error sending mute command: {e}")
+        log.exception(f"error sending mute command: {e}")
         raise
     finally:
         # Restore original settings
@@ -102,7 +102,7 @@ def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
     orig_parity = serial.PARITY_EVEN
 
     try:
-        logger.info(f"target ID{dev_id}: sending enter bootloader command")
+        log.info(f"target ID{dev_id}: sending enter bootloader command")
 
         if dev_id < 0 or dev_id > 0xFFFF:
             raise ValueError(f"invalid device ID: {dev_id}, must be 0-65535")
@@ -133,11 +133,11 @@ def enter_bootloader(sp: SerialPort, dev_id: int, bl_baudrate: int):
             sp.send_data(frame)
             time.sleep(0.2)
     except serial.SerialException as se:
-        logger.exception(f"serial error sending enter bootloader command: {se}")
+        log.exception(f"serial error sending enter bootloader command: {se}")
         sp.reconnect(se)
         raise
     except Exception as e:
-        logger.exception(f"error sending enter bootloader command: {e}")
+        log.exception(f"error sending enter bootloader command: {e}")
         raise
     finally:
         # Restore original settings
