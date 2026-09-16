@@ -40,7 +40,7 @@ def args_get() -> argparse.Namespace:
 
     # Common parent parser
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--loglvl", type=str, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logger threshold level")
+    common.add_argument("--loglvl", type=str, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logger threshold level. Default disabled")
 
     parser = argparse.ArgumentParser(
         description="STM32 UART Mass Programmer Launch Tool",
@@ -61,7 +61,7 @@ def args_get() -> argparse.Namespace:
         "--crc-range",
         type=parse_address_range,
         default={"start": 0, "end": 0},
-        help="STM32 CRC32 range. Format: start-end (e.g., 0x08000000-0x080E0000). " "Defaults to hex file boundaries aligned to 4-byte words.",
+        help="STM32 CRC32 range. Format: start-end (e.g., 0x08000000-0x080E0000). " "Defaults to hex file boundaries aligned to 4-byte words",
     )
 
     # Prog subcommand
@@ -72,13 +72,13 @@ def args_get() -> argparse.Namespace:
         type=expand_numbers,
         required=True,
         default=[],
-        help="Target IDs to program. Single and/or ranges (e.g., '1-10 12 25').",
+        help="Target IDs to program. Single and/or ranges (e.g., '1-10 12 25')",
     )
     prog.add_argument(
         "--erase",
         type=expand_numbers,
         default=[],
-        help="Pages/Sectors to erase before programming.",
+        help="Pages/Sectors to erase before programming",
     )
     prog.add_argument(
         "--attempts-erase",
@@ -108,7 +108,7 @@ def args_get() -> argparse.Namespace:
         "--crc-range",
         type=parse_address_range,
         default={"start": 0, "end": 0},
-        help="STM32 CRC32 range. Format: start-end (e.g., 0x08000000-0x080E0000). " "Defaults to hex file boundaries aligned to 4-byte words.",
+        help="STM32 CRC32 range. Format: start-end (e.g., 0x08000000-0x080E0000). " "Defaults to hex file boundaries aligned to 4-byte words",
     )
     prog.add_argument(
         "--baudrate",
@@ -117,15 +117,10 @@ def args_get() -> argparse.Namespace:
         help="UART baudrate. Default %(default)s",
     )
     prog.add_argument(
-        "--no-tune",
-        action="store_true",
-        help="Disable baudrate autotune",
-    )
-    prog.add_argument(
         "--tune-threshold",
         type=float,
         default=0.8,
-        help="Baudrate autotune success threshold (0.0-1.0). Default %(default)s",
+        help="Baudrate autotune success threshold (0.0[disabled]-1.0). Default %(default)s",
     )
     return parser.parse_args()
 

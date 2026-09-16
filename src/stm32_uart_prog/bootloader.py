@@ -166,22 +166,14 @@ class STM32BL:
             return False
         return True
 
-    def sync(
-        self,
-        sp: SerialPort,
-        total_bar: tqdm,
-        dev_id: int,
-        skip_tune: bool = False,
-        tune_requests: int = 500,
-        success_threshold: float = 0.7,
-    ):
+    def sync(self, sp: SerialPort, total_bar: tqdm, dev_id: int, tune_requests=500, success_threshold=0.0):
         self.__target_id = dev_id
         span, step = 0.2, 0.005
         steps = int(span / step)
         self.ser = sp
         self.baudrate = self.initial_baudrate = sp.baudrate
 
-        if skip_tune:
+        if not success_threshold:
             activated = False
             for _ in range(5):
                 self.ser.send_data(self.ACTIVATE.to_bytes())
@@ -261,7 +253,7 @@ class STM32BL:
             total_bar.write(f"{YELLOW}Baudrate after sync differs from initial: {best_baud}/{self.initial_baudrate}{RESET}")
         return True
 
-    def baud_tune(self, total_bar: tqdm, tune_requests=500, success_threshold=0.7):
+    def baud_tune(self, total_bar: tqdm, tune_requests=500, success_threshold=0.0):
         """
         Autodetect target baudrate using STM32 GET command.
 
@@ -272,12 +264,13 @@ class STM32BL:
 
         orig_cmd_attempts = self.attempts_cmd
         orig_baud = self.ser.baudrate
-
         self.attempts_cmd = 2
         self.ser.timeout = 11 * 20 / orig_baud * 30
-
         span, step = 0.1, 0.002
         steps = int(span / step)
+
+        if not success_threshold:
+            return orig_baud
 
         # Build baud list
         baud_candidates = [orig_baud] * 10  # Try initial baud more times

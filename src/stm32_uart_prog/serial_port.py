@@ -110,8 +110,7 @@ class SerialPort(serial.Serial):
             self.reconnect(se)
         except Exception as e:
             self.log.exception(f"common error during data rcv: {e}")
-        finally:
-            return bytes(data)
+        return bytes(data)
 
     def recv_all(self):
         data = bytes()
@@ -129,8 +128,7 @@ class SerialPort(serial.Serial):
             self.reconnect(se)
         except Exception as e:
             self.log.exception(f"common error during data frame rcv: {e}")
-        finally:
-            return bytes() if data is None else data
+        return bytes() if data is None else data
 
     def reset_input(self):
         try:
