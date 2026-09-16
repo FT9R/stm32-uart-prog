@@ -78,7 +78,7 @@ def args_get() -> argparse.Namespace:
         "--erase",
         type=expand_numbers,
         default=[],
-        help="Pages/Sectors to erase before programming",
+        help="Pages/Sectors to erase before programming (e.g., '0-5 9')",
     )
     prog.add_argument(
         "--attempts-erase",
