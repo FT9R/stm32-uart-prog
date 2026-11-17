@@ -90,15 +90,15 @@ class STM32BL:
             raise RuntimeError("hexfile content is out of target's ROM boundaries")
 
         # CRC range resolution
-        if not crc_range:
-            crc_range = {}
-        req_start = crc_range.get("start", 0)
-        req_end = crc_range.get("end", 0)
-        calc_start = req_start if req_start else self.min_addr
-        calc_end = req_end if req_end else (self.max_addr + 1)
-        calc_start = calc_start & ~3
+        req_start = crc_range.get("start")
+        req_end = crc_range.get("end")
+        calc_start = req_start if req_start is not None else self.min_addr
+        calc_end = req_end if req_end is not None else (self.max_addr + 1)
+        calc_start &= ~3
         calc_end = (calc_end + 3) & ~3
         expected_bytes = calc_end - calc_start
+        if expected_bytes < 4:
+            raise SystemExit(f"resolved CRC range too small: 0x{calc_start:X}-0x{calc_end:X} " f"({expected_bytes} byte(s), need at least 4)")
 
         start_idx = max(0, min(calc_start - self.min_addr, self.data_len))
         end_idx = max(0, min(calc_end - self.min_addr, self.data_len))
